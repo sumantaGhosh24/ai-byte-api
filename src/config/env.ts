@@ -7,4 +7,8 @@ export const env = {
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN!,
   ARCJET_KEY: process.env.ARCJET_KEY!,
   SENTRY_DSN: process.env.SENTRY_DSN!,
+  CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY!,
+  CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY!,
+  CLERK_WEBHOOK_SECRET: process.env.CLERK_WEBHOOK_SECRET!,
+  BASE_URL: process.env.BASE_URL!,
 };

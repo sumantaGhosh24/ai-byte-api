@@ -5,16 +5,27 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import * as Sentry from "@sentry/node";
+import {clerkMiddleware} from "@clerk/express";
 
 import corsOptions from "./config/corsOptions";
 import securityMiddleware from "./middlewares/security.middleware";
+import {clerkWebhookHandler} from "./webhooks/clerk";
+import {sentryClerkUserMiddleware} from "./middlewares/sentryClerkUser.middleware";
 
 const app = express();
+
+app.post(
+  "/webhooks/clerk",
+  express.raw({type: "application/json"}),
+  clerkWebhookHandler,
+);
 
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({extended: true}));
 app.use(helmet());
+app.use(clerkMiddleware());
+app.use(sentryClerkUserMiddleware);
 
 app.use(
   morgan("combined", {

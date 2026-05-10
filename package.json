@@ -17,6 +17,8 @@
   "dependencies": {
     "@arcjet/inspect": "^1.4.0",
     "@arcjet/node": "^1.4.0",
+    "@clerk/backend": "^3.4.7",
+    "@clerk/express": "^2.1.15",
     "@neondatabase/serverless": "^1.1.0",
     "@sentry/node": "^10.52.0",
     "@upstash/ratelimit": "^2.0.8",
