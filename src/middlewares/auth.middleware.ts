@@ -1,13 +1,13 @@
-import {verifyToken} from "@clerk/backend";
-import {Request, Response, NextFunction} from "express";
+import { verifyToken } from "@clerk/backend";
+import { Request, Response, NextFunction } from "express";
 import * as Sentry from "@sentry/node";
 
-import {env} from "../config/env";
+import { env } from "../config/env";
 
 export const verifyClerkToken = async (
   req: Request,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ) => {
   try {
     const authHeader = req.headers.authorization;
@@ -44,6 +44,7 @@ export const verifyClerkToken = async (
   } catch (error) {
     Sentry.logger.error("Clerk token verification failed", {
       reason: "Token verification failed",
+      error,
     });
 
     return res.status(401).json({

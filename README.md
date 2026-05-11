@@ -36,7 +36,6 @@ Built with:
 - Resume learning
 - Progress tracking
 - Video lesson support
-- Offline-ready architecture
 
 ## Quiz Engine
 

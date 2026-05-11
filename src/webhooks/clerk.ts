@@ -1,11 +1,11 @@
-import type {Request, Response} from "express";
-import {verifyWebhook} from "@clerk/backend/webhooks";
-import {eq} from "drizzle-orm";
+import type { Request, Response } from "express";
+import { verifyWebhook } from "@clerk/backend/webhooks";
+import { eq } from "drizzle-orm";
 import * as Sentry from "@sentry/node";
 
-import {db} from "../db";
-import {users} from "../db/schema";
-import {env} from "../config/env";
+import { db } from "../db";
+import { users } from "../db/schema";
+import { env } from "../config/env";
 
 export async function clerkWebhookHandler(req: Request, res: Response) {
   try {
@@ -35,7 +35,7 @@ export async function clerkWebhookHandler(req: Request, res: Response) {
       const u = evt.data;
 
       const email =
-        u.email_addresses?.find((e) => e.id === u.primary_email_address_id)
+        u.email_addresses?.find(e => e.id === u.primary_email_address_id)
           ?.email_address ?? u.email_addresses?.[0]?.email_address;
 
       await db
@@ -47,7 +47,7 @@ export async function clerkWebhookHandler(req: Request, res: Response) {
         })
         .onConflictDoUpdate({
           target: users.clerkId,
-          set: {email, updatedAt: new Date()},
+          set: { email, updatedAt: new Date() },
         });
     }
 
@@ -58,13 +58,13 @@ export async function clerkWebhookHandler(req: Request, res: Response) {
       }
     }
 
-    res.json({ok: true});
+    res.json({ ok: true });
   } catch (err) {
     Sentry.logger.error("Clerk webhook error", {
       reason: "Webhook error",
       error: err,
     });
 
-    res.status(400).json({error: "Invalid webhook"});
+    res.status(400).json({ error: "Invalid webhook" });
   }
 }

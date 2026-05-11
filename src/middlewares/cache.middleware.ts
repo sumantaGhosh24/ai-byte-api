@@ -1,9 +1,10 @@
-import {Request, Response, NextFunction} from "express";
+/* eslint-disable indent */
+import { Request, Response, NextFunction } from "express";
 
-import {getCache} from "../utils/cache";
+import { getCache } from "../utils/cache";
 
 export const cacheMiddleware =
-  (keyBuilder: (req: Request) => string) =>
+  (keyBuilder: (_req: Request) => string) =>
   async (req: Request, res: Response, next: NextFunction) => {
     const key = keyBuilder(req);
 

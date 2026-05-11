@@ -1,11 +1,11 @@
-import arcjet, {shield, detectBot, tokenBucket} from "@arcjet/node";
+import arcjet, { shield, detectBot, tokenBucket } from "@arcjet/node";
 
-import {env} from "./env";
+import { env } from "./env";
 
 const aj = arcjet({
   key: env.ARCJET_KEY,
   rules: [
-    shield({mode: "LIVE"}),
+    shield({ mode: "LIVE" }),
     detectBot({
       mode: "LIVE",
       allow: ["CATEGORY:SEARCH_ENGINE", "CATEGORY:MONITOR", "CATEGORY:PREVIEW"],

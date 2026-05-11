@@ -1,0 +1,11 @@
+node_modules/
+coverage/
+logs/
+drizzle/
+*.log
+package-lock.json
+
+package.json
+tsconfig.json
+.prettierrc
+README.md
