@@ -1,11 +1,11 @@
-import { Request, Response, NextFunction } from "express";
-import { verifyToken } from "@clerk/backend";
-import * as Sentry from "@sentry/node";
+import { Request, Response } from "express";
+import { getAuth } from "@clerk/express";
+import { logger } from "@sentry/node";
 
-import { verifyClerkToken } from "../../src/middlewares/auth.middleware";
+import { requireAuth } from "../../src/middlewares/auth.middleware";
 
-jest.mock("@clerk/backend", () => ({
-  verifyToken: jest.fn(),
+jest.mock("@clerk/express", () => ({
+  getAuth: jest.fn(),
 }));
 
 jest.mock("@sentry/node", () => ({
@@ -14,115 +14,101 @@ jest.mock("@sentry/node", () => ({
   },
 }));
 
-describe("verifyClerkToken Middleware", () => {
-  let req: Partial<Request>;
-  let res: Partial<Response>;
-  let next: NextFunction;
+describe("requireAuth", () => {
+  const mockJson = jest.fn();
+
+  const mockStatus = jest.fn(() => ({
+    json: mockJson,
+  }));
+
+  const mockResponse = {
+    status: mockStatus,
+  } as unknown as Response;
+
+  const mockNext = jest.fn();
+
+  const mockRequest = {} as unknown as Request;
 
   beforeEach(() => {
-    req = {
-      headers: {},
-    };
-
-    res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-
-    next = jest.fn();
-
     jest.clearAllMocks();
   });
 
-  it("should return 401 if authorization header is missing", async () => {
-    await verifyClerkToken(req as Request, res as Response, next);
-
-    expect(res.status).toHaveBeenCalledWith(401);
-
-    expect(res.json).toHaveBeenCalledWith({
-      success: false,
-      message: "Unauthorized: Missing token",
+  it("should call next when user is authenticated", async () => {
+    (getAuth as jest.Mock).mockReturnValue({
+      isAuthenticated: true,
+      userId: "user_123",
     });
 
-    expect(next).not.toHaveBeenCalled();
+    await requireAuth(mockRequest, mockResponse, mockNext);
+
+    expect(getAuth).toHaveBeenCalledWith(mockRequest);
+
+    expect(mockNext).toHaveBeenCalled();
+
+    expect(mockStatus).not.toHaveBeenCalled();
   });
 
-  it("should return 401 if authorization header is invalid", async () => {
-    req.headers = {
-      authorization: "InvalidToken",
-    };
-
-    await verifyClerkToken(req as Request, res as Response, next);
-
-    expect(res.status).toHaveBeenCalledWith(401);
-
-    expect(res.json).toHaveBeenCalledWith({
-      success: false,
-      message: "Unauthorized: Missing token",
+  it("should return 401 when user is not authenticated", async () => {
+    (getAuth as jest.Mock).mockReturnValue({
+      isAuthenticated: false,
+      userId: null,
     });
 
-    expect(next).not.toHaveBeenCalled();
+    await requireAuth(mockRequest, mockResponse, mockNext);
+
+    expect(mockStatus).toHaveBeenCalledWith(401);
+
+    expect(mockJson).toHaveBeenCalledWith({
+      success: false,
+      message: "User not authenticated",
+    });
+
+    expect(logger.error).toHaveBeenCalledWith("Unauthenticated", {
+      reason: "User not authenticated",
+    });
+
+    expect(mockNext).not.toHaveBeenCalled();
   });
 
-  it("should return 401 if token payload has no sub", async () => {
-    req.headers = {
-      authorization: "Bearer fake-token",
-    };
-
-    (verifyToken as jest.Mock).mockResolvedValue({});
-
-    await verifyClerkToken(req as Request, res as Response, next);
-
-    expect(verifyToken).toHaveBeenCalled();
-
-    expect(res.status).toHaveBeenCalledWith(401);
-
-    expect(res.json).toHaveBeenCalledWith({
-      success: false,
-      message: "Unauthorized: Invalid token",
+  it("should return 401 when userId is missing", async () => {
+    (getAuth as jest.Mock).mockReturnValue({
+      isAuthenticated: true,
+      userId: null,
     });
 
-    expect(next).not.toHaveBeenCalled();
+    await requireAuth(mockRequest, mockResponse, mockNext);
+
+    expect(mockStatus).toHaveBeenCalledWith(401);
+
+    expect(mockJson).toHaveBeenCalledWith({
+      success: false,
+      message: "User not authenticated",
+    });
+
+    expect(mockNext).not.toHaveBeenCalled();
   });
 
-  it("should call next if token is valid", async () => {
-    req.headers = {
-      authorization: "Bearer valid-token",
-    };
+  it("should return 401 when getAuth throws error", async () => {
+    const mockError = new Error("Clerk error");
 
-    (verifyToken as jest.Mock).mockResolvedValue({
-      sub: "user_123",
+    (getAuth as jest.Mock).mockImplementation(() => {
+      throw mockError;
     });
 
-    await verifyClerkToken(req as Request, res as Response, next);
+    await requireAuth(mockRequest, mockResponse, mockNext);
 
-    expect(verifyToken).toHaveBeenCalledWith("valid-token", expect.any(Object));
+    expect(mockStatus).toHaveBeenCalledWith(401);
 
-    expect(next).toHaveBeenCalled();
-
-    expect(res.status).not.toHaveBeenCalled();
-  });
-
-  it("should return 401 if verifyToken throws error", async () => {
-    req.headers = {
-      authorization: "Bearer invalid-token",
-    };
-
-    (verifyToken as jest.Mock).mockRejectedValue(
-      new Error("Token verification failed")
-    );
-
-    await verifyClerkToken(req as Request, res as Response, next);
-
-    expect(res.status).toHaveBeenCalledWith(401);
-
-    expect(res.json).toHaveBeenCalledWith({
+    expect(mockJson).toHaveBeenCalledWith({
       success: false,
-      message: "Unauthorized: Token verification failed",
+      message: "Unauthorized: User not authenticated",
     });
 
-    expect(next).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith("Clerk user not authenticated", {
+      reason: "User not authenticated",
+      error: mockError,
+    });
 
-    expect(Sentry.logger.error).toHaveBeenCalled();
+    expect(mockNext).not.toHaveBeenCalled();
   });
 });

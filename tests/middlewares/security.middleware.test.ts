@@ -1,6 +1,6 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import { slidingWindow } from "@arcjet/node";
-import * as Sentry from "@sentry/node";
+import { logger } from "@sentry/node";
 
 import securityMiddleware from "../../src/middlewares/security.middleware";
 import aj from "../../src/config/arcjet";
@@ -23,37 +23,40 @@ jest.mock("@sentry/node", () => ({
 }));
 
 describe("securityMiddleware", () => {
-  let req: Partial<Request>;
-  let res: Partial<Response>;
-  let next: NextFunction;
+  const mockJson = jest.fn();
 
-  let mockProtect: jest.Mock;
+  const mockStatus = jest.fn(() => ({
+    json: mockJson,
+  }));
+
+  const mockResponse = {
+    status: mockStatus,
+  } as unknown as Response;
+
+  const mockNext = jest.fn();
+
+  const mockRequest = {} as unknown as Request;
 
   beforeEach(() => {
-    req = {};
-
-    res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-
-    next = jest.fn();
-
-    mockProtect = jest.fn();
-
-    (aj.withRule as jest.Mock).mockReturnValue({
-      protect: mockProtect,
-    });
-
     jest.clearAllMocks();
   });
 
   it("should call next when request is allowed", async () => {
-    mockProtect.mockResolvedValue({
+    const protect = jest.fn().mockResolvedValue({
       isDenied: () => false,
+
+      reason: {
+        isBot: jest.fn(),
+        isShield: jest.fn(),
+        isRateLimit: jest.fn(),
+      },
     });
 
-    await securityMiddleware(req as Request, res as Response, next);
+    (aj.withRule as jest.Mock).mockReturnValue({
+      protect,
+    });
+
+    await securityMiddleware(mockRequest, mockResponse, mockNext);
 
     expect(slidingWindow).toHaveBeenCalledWith({
       mode: "LIVE",
@@ -61,14 +64,19 @@ describe("securityMiddleware", () => {
       max: 100,
     });
 
-    expect(next).toHaveBeenCalled();
+    expect(aj.withRule).toHaveBeenCalled();
 
-    expect(res.status).not.toHaveBeenCalled();
+    expect(protect).toHaveBeenCalledWith(mockRequest, {
+      requested: 5,
+    });
+
+    expect(mockNext).toHaveBeenCalled();
   });
 
   it("should block bot requests", async () => {
-    mockProtect.mockResolvedValue({
+    const protect = jest.fn().mockResolvedValue({
       isDenied: () => true,
+
       reason: {
         isBot: () => true,
         isShield: () => false,
@@ -76,23 +84,31 @@ describe("securityMiddleware", () => {
       },
     });
 
-    await securityMiddleware(req as Request, res as Response, next);
+    (aj.withRule as jest.Mock).mockReturnValue({
+      protect,
+    });
 
-    expect(res.status).toHaveBeenCalledWith(403);
+    await securityMiddleware(mockRequest, mockResponse, mockNext);
 
-    expect(res.json).toHaveBeenCalledWith({
+    expect(mockStatus).toHaveBeenCalledWith(403);
+
+    expect(mockJson).toHaveBeenCalledWith({
       error: "Forbidden",
       message: "Automated requests are not allowed",
     });
 
-    expect(next).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      "Bot request blocked",
+      expect.any(Object)
+    );
 
-    expect(Sentry.logger.error).toHaveBeenCalled();
+    expect(mockNext).not.toHaveBeenCalled();
   });
 
   it("should block shield requests", async () => {
-    mockProtect.mockResolvedValue({
+    const protect = jest.fn().mockResolvedValue({
       isDenied: () => true,
+
       reason: {
         isBot: () => false,
         isShield: () => true,
@@ -100,21 +116,31 @@ describe("securityMiddleware", () => {
       },
     });
 
-    await securityMiddleware(req as Request, res as Response, next);
+    (aj.withRule as jest.Mock).mockReturnValue({
+      protect,
+    });
 
-    expect(res.status).toHaveBeenCalledWith(403);
+    await securityMiddleware(mockRequest, mockResponse, mockNext);
 
-    expect(res.json).toHaveBeenCalledWith({
+    expect(mockStatus).toHaveBeenCalledWith(403);
+
+    expect(mockJson).toHaveBeenCalledWith({
       error: "Forbidden",
       message: "Request blocked by security policy",
     });
 
-    expect(next).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      "Shield request blocked",
+      expect.any(Object)
+    );
+
+    expect(mockNext).not.toHaveBeenCalled();
   });
 
-  it("should block rate limited requests", async () => {
-    mockProtect.mockResolvedValue({
+  it("should block rate limit requests", async () => {
+    const protect = jest.fn().mockResolvedValue({
       isDenied: () => true,
+
       reason: {
         isBot: () => false,
         isShield: () => false,
@@ -122,32 +148,46 @@ describe("securityMiddleware", () => {
       },
     });
 
-    await securityMiddleware(req as Request, res as Response, next);
+    (aj.withRule as jest.Mock).mockReturnValue({
+      protect,
+    });
 
-    expect(res.status).toHaveBeenCalledWith(403);
+    await securityMiddleware(mockRequest, mockResponse, mockNext);
 
-    expect(res.json).toHaveBeenCalledWith({
+    expect(mockStatus).toHaveBeenCalledWith(403);
+
+    expect(mockJson).toHaveBeenCalledWith({
       error: "Forbidden",
       message: "Too many requests",
     });
 
-    expect(next).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      "Rate limit request blocked",
+      expect.any(Object)
+    );
+
+    expect(mockNext).not.toHaveBeenCalled();
   });
 
   it("should return 500 when middleware throws error", async () => {
-    mockProtect.mockRejectedValue(new Error("Security middleware failed"));
+    (aj.withRule as jest.Mock).mockImplementation(() => {
+      throw new Error("Security middleware error");
+    });
 
-    await securityMiddleware(req as Request, res as Response, next);
+    await securityMiddleware(mockRequest, mockResponse, mockNext);
 
-    expect(res.status).toHaveBeenCalledWith(500);
+    expect(mockStatus).toHaveBeenCalledWith(500);
 
-    expect(res.json).toHaveBeenCalledWith({
+    expect(mockJson).toHaveBeenCalledWith({
       error: "Internal server error",
       message: "Something went wrong with security middleware",
     });
 
-    expect(next).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      "Security middleware failed",
+      expect.any(Object)
+    );
 
-    expect(Sentry.logger.error).toHaveBeenCalled();
+    expect(mockNext).not.toHaveBeenCalled();
   });
 });

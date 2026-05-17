@@ -12,9 +12,8 @@ export const cacheMiddleware =
 
     if (cachedData) {
       return res.status(200).json({
-        success: true,
         source: "cache",
-        data: cachedData,
+        ...cachedData,
       });
     }
 

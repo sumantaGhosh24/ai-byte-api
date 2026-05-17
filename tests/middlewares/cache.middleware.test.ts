@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 
 import { cacheMiddleware } from "../../src/middlewares/cache.middleware";
 import { getCache } from "../../src/utils/cache";
@@ -8,95 +8,96 @@ jest.mock("../../src/utils/cache", () => ({
 }));
 
 describe("cacheMiddleware", () => {
-  let req: Partial<Request>;
-  let res: Partial<Response>;
-  let next: NextFunction;
+  const mockJson = jest.fn();
+
+  const mockStatus = jest.fn(() => ({
+    json: mockJson,
+  }));
+
+  const mockResponse = {
+    status: mockStatus,
+  } as unknown as Response;
+
+  const mockNext = jest.fn();
 
   beforeEach(() => {
-    req = {
-      params: {},
-      query: {},
-      body: {},
-    };
-
-    res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-
-    next = jest.fn();
-
     jest.clearAllMocks();
   });
 
   it("should return cached data when cache exists", async () => {
-    const mockData = {
-      id: 1,
-      name: "AIByte",
-    };
-
-    (getCache as jest.Mock).mockResolvedValue(mockData);
-
-    const middleware = cacheMiddleware(() => "test-cache-key");
-
-    await middleware(req as Request, res as Response, next);
-
-    expect(getCache).toHaveBeenCalledWith("test-cache-key");
-
-    expect(res.status).toHaveBeenCalledWith(200);
-
-    expect(res.json).toHaveBeenCalledWith({
+    (getCache as jest.Mock).mockResolvedValue({
       success: true,
-      source: "cache",
-      data: mockData,
+      data: {
+        id: "1",
+        name: "John",
+      },
     });
 
-    expect(next).not.toHaveBeenCalled();
+    const keyBuilder = jest.fn(() => "users:1");
+
+    const middleware = cacheMiddleware(keyBuilder);
+
+    const mockRequest = {} as unknown as Request;
+
+    await middleware(mockRequest, mockResponse, mockNext);
+
+    expect(keyBuilder).toHaveBeenCalledWith(mockRequest);
+
+    expect(getCache).toHaveBeenCalledWith("users:1");
+
+    expect(mockStatus).toHaveBeenCalledWith(200);
+
+    expect(mockJson).toHaveBeenCalledWith({
+      source: "cache",
+      success: true,
+      data: {
+        id: "1",
+        name: "John",
+      },
+    });
+
+    expect(mockNext).not.toHaveBeenCalled();
   });
 
   it("should call next when cache does not exist", async () => {
     (getCache as jest.Mock).mockResolvedValue(null);
 
-    const middleware = cacheMiddleware(() => "test-cache-key");
+    const keyBuilder = jest.fn(() => "users:1");
 
-    await middleware(req as Request, res as Response, next);
+    const middleware = cacheMiddleware(keyBuilder);
 
-    expect(getCache).toHaveBeenCalledWith("test-cache-key");
+    const mockRequest = {} as unknown as Request;
 
-    expect(next).toHaveBeenCalled();
+    await middleware(mockRequest, mockResponse, mockNext);
 
-    expect(res.status).not.toHaveBeenCalled();
+    expect(keyBuilder).toHaveBeenCalledWith(mockRequest);
+
+    expect(getCache).toHaveBeenCalledWith("users:1");
+
+    expect(mockNext).toHaveBeenCalled();
+
+    expect(mockStatus).not.toHaveBeenCalled();
   });
 
-  it("should use dynamic cache key from request", async () => {
-    req.params = {
-      id: "123",
-    };
-
+  it("should use request object in key builder", async () => {
     (getCache as jest.Mock).mockResolvedValue(null);
 
-    const middleware = cacheMiddleware(req => `user:${req.params.id}`);
+    const keyBuilder = jest.fn((req: Request) => `profile:${req.params.id}`);
 
-    await middleware(req as Request, res as Response, next);
+    const middleware = cacheMiddleware(keyBuilder);
 
-    expect(getCache).toHaveBeenCalledWith("user:123");
-
-    expect(next).toHaveBeenCalled();
-  });
-
-  it("should work with query params in keyBuilder", async () => {
-    req.query = {
-      search: "openai",
+    const mockRequest = {
+      params: {
+        id: "123",
+      },
     };
 
-    (getCache as jest.Mock).mockResolvedValue(null);
+    await middleware(mockRequest as unknown as Request, mockResponse, mockNext);
 
-    const middleware = cacheMiddleware(req => `search:${req.query.search}`);
+    expect(keyBuilder).toHaveBeenCalledWith(mockRequest);
 
-    await middleware(req as Request, res as Response, next);
+    expect(getCache).toHaveBeenCalledWith("profile:123");
 
-    expect(getCache).toHaveBeenCalledWith("search:openai");
-
-    expect(next).toHaveBeenCalled();
+    expect(mockNext).toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { logger } from "@sentry/node";
 
 import { apiRateLimit, authRateLimit } from "../config/rateLimit";
 
@@ -15,6 +16,11 @@ export const generalRateLimit = async (
   );
 
   if (!success) {
+    logger.error("Too many requests", {
+      remaining,
+      reset,
+    });
+
     return res.status(429).json({
       success: false,
       message: "Too many requests",
@@ -37,6 +43,8 @@ export const loginRateLimit = async (
   const { success } = await authRateLimit.limit(`user:${identifier}`);
 
   if (!success) {
+    logger.error("Too many auth attempts");
+
     return res.status(429).json({
       success: false,
       message: "Too many auth attempts",

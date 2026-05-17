@@ -1,6 +1,6 @@
 import { Response, NextFunction, Request } from "express";
 import { slidingWindow } from "@arcjet/node";
-import * as Sentry from "@sentry/node";
+import { logger } from "@sentry/node";
 
 import aj from "../config/arcjet";
 
@@ -23,7 +23,7 @@ const securityMiddleware = async (
     const decision = await client.protect(req, { requested: 5 });
 
     if (decision.isDenied() && decision.reason.isBot()) {
-      Sentry.logger.error("Bot request blocked", {
+      logger.error("Bot request blocked", {
         reason: "Bot request blocked",
         error: decision.reason,
       });
@@ -36,7 +36,7 @@ const securityMiddleware = async (
     }
 
     if (decision.isDenied() && decision.reason.isShield()) {
-      Sentry.logger.error("Shield request blocked", {
+      logger.error("Shield request blocked", {
         reason: "Shield request blocked",
         error: decision.reason,
       });
@@ -49,7 +49,7 @@ const securityMiddleware = async (
     }
 
     if (decision.isDenied() && decision.reason.isRateLimit()) {
-      Sentry.logger.error("Rate limit request blocked", {
+      logger.error("Rate limit request blocked", {
         reason: "Rate limit request blocked",
         error: decision.reason,
       });
@@ -62,7 +62,7 @@ const securityMiddleware = async (
 
     next();
   } catch (e) {
-    Sentry.logger.error("Security middleware failed", {
+    logger.error("Security middleware failed", {
       reason: "Security middleware failed",
       error: e,
     });

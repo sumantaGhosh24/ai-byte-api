@@ -1,4 +1,5 @@
-import { NextFunction, Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
+
 import request from "supertest";
 
 import app from "../src/app";
@@ -9,19 +10,23 @@ jest.mock("@arcjet/node", () => ({
 
 jest.mock("../src/config/arcjet", () => ({
   __esModule: true,
-  default: jest.fn(),
+  default: {
+    withRule: jest.fn(() => ({
+      protect: jest.fn().mockResolvedValue({
+        isDenied: () => false,
+      }),
+    })),
+  },
 }));
-
-jest.mock("../src/middlewares/security.middleware", () =>
-  jest.fn((req, res, next) => next())
-);
 
 jest.mock("@sentry/node", () => ({
   init: jest.fn(),
+
   logger: {
     info: jest.fn(),
     error: jest.fn(),
   },
+
   setupExpressErrorHandler: jest.fn(),
 }));
 
@@ -39,23 +44,48 @@ jest.mock("../src/middlewares/sentryClerkUser.middleware", () => ({
 }));
 
 jest.mock("../src/webhooks/clerk", () => ({
-  clerkWebhookHandler: (req: Request, res: Response) =>
-    res.status(200).json({ success: true }),
+  clerkWebhookHandler: (req: Request, res: Response) => {
+    res.status(200).json({
+      success: true,
+    });
+  },
 }));
 
-describe("API Endpoints", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+jest.mock("../src/routes/user.route", () => {
+  const router = express.Router();
+
+  router.get("/users/test", (req: Request, res: Response) => {
+    res.status(200).json({
+      success: true,
+      route: "user",
+    });
   });
 
-  describe("GET /health", () => {
-    it("should return health status", async () => {
-      const response = await request(app).get("/health").expect(200);
+  return {
+    __esModule: true,
+    default: router,
+  };
+});
 
-      expect(response.body).toHaveProperty("status", "OK");
-      expect(response.body).toHaveProperty("timestamp");
-      expect(response.body).toHaveProperty("uptime");
+jest.mock("../src/routes/profile.route", () => {
+  const router = express.Router();
+
+  router.get("/profiles/test", (req: Request, res: Response) => {
+    res.status(200).json({
+      success: true,
+      route: "profile",
     });
+  });
+
+  return {
+    __esModule: true,
+    default: router,
+  };
+});
+
+describe("App Routes", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
   describe("GET /", () => {
@@ -66,14 +96,28 @@ describe("API Endpoints", () => {
     });
   });
 
+  describe("GET /health", () => {
+    it("should return health status", async () => {
+      const response = await request(app).get("/health").expect(200);
+
+      expect(response.body).toHaveProperty("success", true);
+
+      expect(response.body).toHaveProperty("status", "OK");
+
+      expect(response.body).toHaveProperty("timestamp");
+
+      expect(response.body).toHaveProperty("uptime");
+    });
+  });
+
   describe("GET /api", () => {
-    it("should return API message", async () => {
+    it("should return api message", async () => {
       const response = await request(app).get("/api").expect(200);
 
-      expect(response.body).toHaveProperty(
-        "message",
-        "AIByte Website API is working!"
-      );
+      expect(response.body).toEqual({
+        success: true,
+        message: "AIByte Website API is working!",
+      });
     });
   });
 
@@ -81,7 +125,9 @@ describe("API Endpoints", () => {
     it("should handle clerk webhook", async () => {
       const response = await request(app)
         .post("/webhooks/clerk")
-        .send({ test: true })
+        .send({
+          test: true,
+        })
         .expect(200);
 
       expect(response.body).toEqual({
@@ -90,11 +136,35 @@ describe("API Endpoints", () => {
     });
   });
 
-  describe("GET /notfound", () => {
-    it("should return 404 for non-existent routes", async () => {
-      const response = await request(app).get("/notfound").expect(404);
+  describe("GET /api/users/test", () => {
+    it("should access mocked user route", async () => {
+      const response = await request(app).get("/api/users/test").expect(200);
 
-      expect(response.body).toHaveProperty("message", "Route not found!");
+      expect(response.body).toEqual({
+        success: true,
+        route: "user",
+      });
+    });
+  });
+
+  describe("GET /api/profiles/test", () => {
+    it("should access mocked profile route", async () => {
+      const response = await request(app).get("/api/profiles/test").expect(200);
+
+      expect(response.body).toEqual({
+        success: true,
+        route: "profile",
+      });
+    });
+  });
+
+  describe("GET /not-found", () => {
+    it("should return 404", async () => {
+      const response = await request(app).get("/not-found").expect(404);
+
+      expect(response.body).toEqual({
+        message: "Route not found!",
+      });
     });
   });
 });

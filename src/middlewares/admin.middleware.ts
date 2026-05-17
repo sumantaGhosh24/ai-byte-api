@@ -2,7 +2,9 @@ import { Response, NextFunction, Request } from "express";
 import { logger } from "@sentry/node";
 import { getAuth } from "@clerk/express";
 
-export const requireAuth = async (
+import { getLocalUser } from "../utils/users";
+
+export const requireAdmin = async (
   req: Request,
   res: Response,
   next: NextFunction
@@ -18,6 +20,19 @@ export const requireAuth = async (
       return res.status(401).json({
         success: false,
         message: "User not authenticated",
+      });
+    }
+
+    const user = await getLocalUser(userId);
+
+    if (!user?.isAdmin) {
+      logger.error("Unauthorized", {
+        reason: "User not authenticated",
+      });
+
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden admin only",
       });
     }
 

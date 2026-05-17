@@ -1,5 +1,13 @@
 import { redis } from "../config/redis";
 
+export const getKeys = async (key: string) => {
+  const keys = await redis.keys(key);
+
+  if (!keys.length) return;
+
+  return keys;
+};
+
 export const getCache = async <T>(key: string) => {
   const data = await redis.get<T>(key);
 

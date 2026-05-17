@@ -1,4 +1,5 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
+import { logger } from "@sentry/node";
 
 import {
   generalRateLimit,
@@ -10,153 +11,191 @@ jest.mock("../../src/config/rateLimit", () => ({
   apiRateLimit: {
     limit: jest.fn(),
   },
+
   authRateLimit: {
     limit: jest.fn(),
   },
 }));
 
-describe("Rate Limit Middleware", () => {
-  let req: Partial<Request>;
-  let res: Partial<Response>;
-  let next: NextFunction;
+jest.mock("@sentry/node", () => ({
+  logger: {
+    error: jest.fn(),
+  },
+}));
+
+describe("rateLimit", () => {
+  const mockJson = jest.fn();
+
+  const mockStatus = jest.fn(() => ({
+    json: mockJson,
+  }));
+
+  const mockResponse = {
+    status: mockStatus,
+  } as unknown as Response;
+
+  const mockNext = jest.fn();
 
   beforeEach(() => {
-    req = {
-      ip: "127.0.0.1",
-      headers: {},
-    };
-
-    res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-
-    next = jest.fn();
-
     jest.clearAllMocks();
   });
 
   describe("generalRateLimit", () => {
-    it("should call next when rate limit is successful", async () => {
+    it("should call next when request is allowed", async () => {
       (apiRateLimit.limit as jest.Mock).mockResolvedValue({
         success: true,
         remaining: 10,
-        reset: 1000,
+        reset: 100,
       });
 
-      await generalRateLimit(req as Request, res as Response, next);
+      const mockRequest = {
+        ip: "127.0.0.1",
+        headers: {},
+      } as unknown as Request;
+
+      await generalRateLimit(mockRequest, mockResponse, mockNext);
 
       expect(apiRateLimit.limit).toHaveBeenCalledWith("user:127.0.0.1");
 
-      expect(next).toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalled();
 
-      expect(res.status).not.toHaveBeenCalled();
+      expect(mockStatus).not.toHaveBeenCalled();
     });
 
-    it("should return 429 when rate limit fails", async () => {
+    it("should return 429 when rate limit exceeded", async () => {
       (apiRateLimit.limit as jest.Mock).mockResolvedValue({
         success: false,
         remaining: 0,
-        reset: 12345,
+        reset: 120,
       });
 
-      await generalRateLimit(req as Request, res as Response, next);
+      const mockRequest = {
+        ip: "127.0.0.1",
+        headers: {},
+      } as unknown as Request;
 
-      expect(res.status).toHaveBeenCalledWith(429);
+      await generalRateLimit(mockRequest, mockResponse, mockNext);
 
-      expect(res.json).toHaveBeenCalledWith({
+      expect(mockStatus).toHaveBeenCalledWith(429);
+
+      expect(mockJson).toHaveBeenCalledWith({
         success: false,
         message: "Too many requests",
         remaining: 0,
-        reset: 12345,
+        reset: 120,
       });
 
-      expect(next).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith("Too many requests", {
+        remaining: 0,
+        reset: 120,
+      });
+
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it("should use x-forwarded-for when ip is missing", async () => {
-      const req = {
+    it("should use x-forwarded-for header when ip is missing", async () => {
+      (apiRateLimit.limit as jest.Mock).mockResolvedValue({
+        success: true,
+      });
+
+      const mockRequest = {
         headers: {
           "x-forwarded-for": "192.168.1.1",
         },
-      } as Partial<Request>;
+      } as unknown as Request;
 
-      (apiRateLimit.limit as jest.Mock).mockResolvedValue({
-        success: true,
-      });
-
-      await generalRateLimit(req as Request, res as Response, next);
+      await generalRateLimit(mockRequest, mockResponse, mockNext);
 
       expect(apiRateLimit.limit).toHaveBeenCalledWith("user:192.168.1.1");
-
-      expect(next).toHaveBeenCalled();
     });
 
-    it("should fallback to anonymous when no identifier exists", async () => {
-      const req = {
-        headers: {},
-      } as Partial<Request>;
-
+    it("should fallback to anonymous identifier", async () => {
       (apiRateLimit.limit as jest.Mock).mockResolvedValue({
         success: true,
       });
 
-      await generalRateLimit(req as Request, res as Response, next);
+      const mockRequest = {
+        headers: {},
+      } as unknown as Request;
+
+      await generalRateLimit(mockRequest, mockResponse, mockNext);
 
       expect(apiRateLimit.limit).toHaveBeenCalledWith("user:anonymous");
-
-      expect(next).toHaveBeenCalled();
     });
   });
 
   describe("loginRateLimit", () => {
-    it("should call next when auth rate limit passes", async () => {
+    it("should call next when login request is allowed", async () => {
       (authRateLimit.limit as jest.Mock).mockResolvedValue({
         success: true,
       });
 
-      await loginRateLimit(req as Request, res as Response, next);
+      const mockRequest = {
+        ip: "127.0.0.1",
+        headers: {},
+      } as unknown as Request;
+
+      await loginRateLimit(mockRequest, mockResponse, mockNext);
 
       expect(authRateLimit.limit).toHaveBeenCalledWith("user:127.0.0.1");
 
-      expect(next).toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalled();
 
-      expect(res.status).not.toHaveBeenCalled();
+      expect(mockStatus).not.toHaveBeenCalled();
     });
 
-    it("should return 429 when auth rate limit fails", async () => {
+    it("should return 429 when auth limit exceeded", async () => {
       (authRateLimit.limit as jest.Mock).mockResolvedValue({
         success: false,
       });
 
-      await loginRateLimit(req as Request, res as Response, next);
+      const mockRequest = {
+        ip: "127.0.0.1",
+        headers: {},
+      } as unknown as Request;
 
-      expect(res.status).toHaveBeenCalledWith(429);
+      await loginRateLimit(mockRequest, mockResponse, mockNext);
 
-      expect(res.json).toHaveBeenCalledWith({
+      expect(mockStatus).toHaveBeenCalledWith(429);
+
+      expect(mockJson).toHaveBeenCalledWith({
         success: false,
         message: "Too many auth attempts",
       });
 
-      expect(next).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith("Too many auth attempts");
+
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it("should use x-forwarded-for for auth limiter", async () => {
-      const req = {
-        headers: {
-          "x-forwarded-for": "10.0.0.1",
-        },
-      } as Partial<Request>;
-
+    it("should use forwarded ip for auth limiter", async () => {
       (authRateLimit.limit as jest.Mock).mockResolvedValue({
         success: true,
       });
 
-      await loginRateLimit(req as Request, res as Response, next);
+      const mockRequest = {
+        headers: {
+          "x-forwarded-for": "10.0.0.1",
+        },
+      } as unknown as Request;
+
+      await loginRateLimit(mockRequest, mockResponse, mockNext);
 
       expect(authRateLimit.limit).toHaveBeenCalledWith("user:10.0.0.1");
+    });
 
-      expect(next).toHaveBeenCalled();
+    it("should fallback to anonymous for auth limiter", async () => {
+      (authRateLimit.limit as jest.Mock).mockResolvedValue({
+        success: true,
+      });
+
+      const mockRequest = {
+        headers: {},
+      } as unknown as Request;
+
+      await loginRateLimit(mockRequest, mockResponse, mockNext);
+
+      expect(authRateLimit.limit).toHaveBeenCalledWith("user:anonymous");
     });
   });
 });

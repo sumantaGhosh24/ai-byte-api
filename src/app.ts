@@ -11,6 +11,8 @@ import corsOptions from "./config/corsOptions";
 import securityMiddleware from "./middlewares/security.middleware";
 import { clerkWebhookHandler } from "./webhooks/clerk";
 import { sentryClerkUserMiddleware } from "./middlewares/sentryClerkUser.middleware";
+import userRoutes from "./routes/user.route";
+import profileRoutes from "./routes/profile.route";
 
 const app = express();
 
@@ -41,6 +43,7 @@ app.get("/", (req, res) => {
 
 app.get("/health", (req, res) => {
   res.status(200).json({
+    success: true,
     status: "OK",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
@@ -48,13 +51,17 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/api", (req, res) => {
-  res.status(200).json({ message: "AIByte Website API is working!" });
+  res
+    .status(200)
+    .json({ success: true, message: "AIByte Website API is working!" });
 });
 
-// app.use("/api/v1", userRoutes);
+app.use("/api", userRoutes);
+app.use("/api", profileRoutes);
 
 app.use((req, res) => {
   Sentry.logger.error("Not Found", {
+    success: true,
     reason: "Route not found",
   });
 

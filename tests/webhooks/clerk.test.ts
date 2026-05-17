@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { verifyWebhook } from "@clerk/backend/webhooks";
-import * as Sentry from "@sentry/node";
+import { logger } from "@sentry/node";
 
 import { clerkWebhookHandler } from "../../src/webhooks/clerk";
 import { db } from "../../src/db";
@@ -23,13 +23,25 @@ jest.mock("@sentry/node", () => ({
   },
 }));
 
-const mockOnConflictDoUpdate = jest.fn();
+const mockReturning = jest.fn();
+
+const mockOnConflictDoUpdate = jest.fn(() => ({
+  returning: mockReturning,
+}));
 
 const mockValues = jest.fn(() => ({
   onConflictDoUpdate: mockOnConflictDoUpdate,
 }));
 
 const mockWhere = jest.fn();
+
+const mockTxInsert = jest.fn(() => ({
+  values: jest.fn(),
+}));
+
+const mockTxDelete = jest.fn(() => ({
+  where: jest.fn(),
+}));
 
 jest.mock("../../src/db", () => ({
   db: {
@@ -39,12 +51,25 @@ jest.mock("../../src/db", () => ({
     delete: jest.fn(() => ({
       where: mockWhere,
     })),
+    transaction: jest.fn(async callback => {
+      await callback({
+        insert: mockTxInsert,
+        delete: mockTxDelete,
+      });
+    }),
   },
 }));
 
 jest.mock("../../src/db/schema", () => ({
   users: {
+    id: "id",
     clerkId: "clerkId",
+  },
+  profiles: {
+    userId: "userId",
+  },
+  streaks: {
+    userId: "userId",
   },
 }));
 
@@ -65,7 +90,6 @@ describe("clerkWebhookHandler", () => {
     res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
-      send: jest.fn(),
     };
 
     jest.clearAllMocks();
@@ -78,13 +102,16 @@ describe("clerkWebhookHandler", () => {
 
     expect(res.status).toHaveBeenCalledWith(503);
 
-    expect(res.send).toHaveBeenCalledWith("Webhooks secret is not provided");
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: "Webhooks secret is not provided",
+    });
 
-    expect(Sentry.logger.error).toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalled();
   });
 
   it("should handle user.created webhook", async () => {
-    env.CLERK_WEBHOOK_SECRET = "test_secret";
+    env.CLERK_WEBHOOK_SECRET = "test_webhook_secret";
 
     (verifyWebhook as jest.Mock).mockResolvedValue({
       type: "user.created",
@@ -100,21 +127,33 @@ describe("clerkWebhookHandler", () => {
       },
     });
 
-    await clerkWebhookHandler(req as Request, res as Response);
+    mockReturning.mockResolvedValue([
+      {
+        id: "db_user_1",
+      },
+    ]);
 
-    expect(verifyWebhook).toHaveBeenCalled();
+    await clerkWebhookHandler(req as Request, res as Response);
 
     expect(db.insert).toHaveBeenCalled();
 
     expect(mockValues).toHaveBeenCalledWith({
       clerkId: "user_123",
       email: "test@example.com",
+      xp: 0,
       isAdmin: false,
     });
 
     expect(mockOnConflictDoUpdate).toHaveBeenCalled();
 
+    expect(mockReturning).toHaveBeenCalled();
+
+    expect(db.transaction).toHaveBeenCalled();
+
+    expect(mockTxInsert).toHaveBeenCalledTimes(2);
+
     expect(res.json).toHaveBeenCalledWith({
+      success: true,
       ok: true,
     });
   });
@@ -134,6 +173,12 @@ describe("clerkWebhookHandler", () => {
       },
     });
 
+    mockReturning.mockResolvedValue([
+      {
+        id: "db_user_2",
+      },
+    ]);
+
     await clerkWebhookHandler(req as Request, res as Response);
 
     expect(db.insert).toHaveBeenCalled();
@@ -141,10 +186,14 @@ describe("clerkWebhookHandler", () => {
     expect(mockValues).toHaveBeenCalledWith({
       clerkId: "user_456",
       email: "updated@example.com",
+      xp: 0,
       isAdmin: false,
     });
 
+    expect(db.transaction).toHaveBeenCalled();
+
     expect(res.json).toHaveBeenCalledWith({
+      success: true,
       ok: true,
     });
   });
@@ -163,7 +212,12 @@ describe("clerkWebhookHandler", () => {
 
     expect(mockWhere).toHaveBeenCalled();
 
+    expect(db.transaction).toHaveBeenCalled();
+
+    expect(mockTxDelete).toHaveBeenCalledTimes(3);
+
     expect(res.json).toHaveBeenCalledWith({
+      success: true,
       ok: true,
     });
   });
@@ -175,11 +229,12 @@ describe("clerkWebhookHandler", () => {
 
     await clerkWebhookHandler(req as Request, res as Response);
 
-    expect(Sentry.logger.error).toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalled();
 
     expect(res.status).toHaveBeenCalledWith(400);
 
     expect(res.json).toHaveBeenCalledWith({
+      success: false,
       error: "Invalid webhook",
     });
   });
@@ -199,15 +254,23 @@ describe("clerkWebhookHandler", () => {
       },
     });
 
+    mockReturning.mockResolvedValue([
+      {
+        id: "db_user_fallback",
+      },
+    ]);
+
     await clerkWebhookHandler(req as Request, res as Response);
 
     expect(mockValues).toHaveBeenCalledWith({
       clerkId: "user_fallback",
       email: "fallback@example.com",
+      xp: 0,
       isAdmin: false,
     });
 
     expect(res.json).toHaveBeenCalledWith({
+      success: true,
       ok: true,
     });
   });

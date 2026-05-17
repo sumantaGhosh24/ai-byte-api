@@ -1,8 +1,13 @@
 import { Response, NextFunction, Request } from "express";
 import { logger } from "@sentry/node";
 import { getAuth } from "@clerk/express";
+import { eq } from "drizzle-orm";
 
-export const requireAuth = async (
+import { getLocalUser } from "../utils/users";
+import { db } from "../db";
+import { profiles } from "../db/schema";
+
+export const requireOnboarding = async (
   req: Request,
   res: Response,
   next: NextFunction
@@ -18,6 +23,21 @@ export const requireAuth = async (
       return res.status(401).json({
         success: false,
         message: "User not authenticated",
+      });
+    }
+
+    const user = await getLocalUser(userId);
+
+    const [profile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.userId, user.id))
+      .limit(1);
+
+    if (!profile?.onboardingCompleted) {
+      return res.status(403).json({
+        success: false,
+        message: "Complete onboarding first",
       });
     }
 

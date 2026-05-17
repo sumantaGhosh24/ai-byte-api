@@ -8,6 +8,13 @@
       "when": 1778426327078,
       "tag": "0000_whole_frank_castle",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778994624970,
+      "tag": "0001_parallel_scarecrow",
+      "breakpoints": true
     }
   ]
 }

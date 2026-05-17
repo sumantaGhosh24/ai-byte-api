@@ -1,5 +1,5 @@
 export const redisKeys = {
   profile: (userId: string) => `profile:${userId}`,
-  courses: "courses:all",
-  course: (id: string) => `course:${id}`,
+  publicProfile: (userId: string) => `public-profile:${userId}`,
+  users: (query: string) => `users:${query}`,
 };
