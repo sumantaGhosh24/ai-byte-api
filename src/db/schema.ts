@@ -58,6 +58,15 @@ export const streaks = pgTable("streaks", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const categories = pgTable("categories", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  imageUrl: text("image_url"),
+  imagePublicId: text("image_public_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const usersRelations = relations(users, ({ one }) => ({
   profile: one(profiles, {
     fields: [users.id],

@@ -13,6 +13,7 @@ import { clerkWebhookHandler } from "./webhooks/clerk";
 import { sentryClerkUserMiddleware } from "./middlewares/sentryClerkUser.middleware";
 import userRoutes from "./routes/user.route";
 import profileRoutes from "./routes/profile.route";
+import categoryRoutes from "./routes/category.route";
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.get("/api", (req, res) => {
 
 app.use("/api", userRoutes);
 app.use("/api", profileRoutes);
+app.use("/api", categoryRoutes);
 
 app.use((req, res) => {
   Sentry.logger.error("Not Found", {
