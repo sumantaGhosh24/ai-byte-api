@@ -15,6 +15,13 @@
       "when": 1778994624970,
       "tag": "0001_parallel_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779033465752,
+      "tag": "0002_mean_pestilence",
+      "breakpoints": true
     }
   ]
 }

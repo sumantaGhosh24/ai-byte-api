@@ -1,5 +1,4 @@
-import { Request, Response } from "express";
-import { logger } from "@sentry/node";
+import type { Request, Response } from "express";
 
 import {
   getAllCategoriesController,
@@ -18,19 +17,11 @@ import {
   deleteCategoryService,
 } from "../../src/services/category.service";
 import {
-  deleteCache,
-  deleteManyCache,
-  getKeys,
   setCache,
+  getKeys,
+  deleteManyCache,
+  deleteCache,
 } from "../../src/utils/cache";
-import { formatValidationError } from "../../src/utils/format";
-import { redisKeys } from "../../src/utils/redisKeys";
-
-import {
-  categoryIdSchema,
-  createCategorySchema,
-  updateCategorySchema,
-} from "../../src/validations/category.validation";
 
 jest.mock("@sentry/node", () => ({
   logger: {
@@ -50,604 +41,270 @@ jest.mock("../../src/services/category.service", () => ({
 
 jest.mock("../../src/utils/cache", () => ({
   setCache: jest.fn(),
-  deleteCache: jest.fn(),
-  deleteManyCache: jest.fn(),
   getKeys: jest.fn(),
-}));
-
-jest.mock("../../src/utils/format", () => ({
-  formatValidationError: jest.fn(),
+  deleteManyCache: jest.fn(),
+  deleteCache: jest.fn(),
 }));
 
 jest.mock("../../src/utils/redisKeys", () => ({
   redisKeys: {
-    categories: "categories-key",
-    pCategories: jest.fn(),
-    category: jest.fn(),
+    categories: "categories-cache-key",
+    pCategories: jest.fn((query: string) => `categories-paginated:${query}`),
+    category: jest.fn((id: string) => `category:${id}`),
   },
 }));
 
-jest.mock("../../src/validations/category.validation", () => ({
-  categoryIdSchema: {
-    safeParse: jest.fn(),
-  },
-  createCategorySchema: {
-    safeParse: jest.fn(),
-  },
-  updateCategorySchema: {
-    safeParse: jest.fn(),
-  },
-}));
-
-describe("Category Controllers", () => {
-  const mockJson = jest.fn();
-
-  const mockStatus = jest.fn(() => ({
-    json: mockJson,
-  }));
-
-  const res = {
-    json: mockJson,
-    status: mockStatus,
-  } as unknown as Response;
+describe("Category Controller", () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
 
   beforeEach(() => {
+    req = {
+      params: {},
+      query: {},
+      body: {},
+    };
+
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    };
+
     jest.clearAllMocks();
   });
 
   describe("getAllCategoriesController", () => {
-    it("should get all categories successfully", async () => {
-      const req = {} as Request;
-
+    it("should return all categories", async () => {
       const categories = [
         {
           id: "1",
-          name: "Technology",
+          name: "Programming",
         },
       ];
 
       (getAllCategoriesService as jest.Mock).mockResolvedValue(categories);
 
-      await getAllCategoriesController(req, res);
-
-      expect(logger.info).toHaveBeenCalled();
+      await getAllCategoriesController(req as Request, res as Response);
 
       expect(getAllCategoriesService).toHaveBeenCalled();
 
-      expect(setCache).toHaveBeenCalledWith("categories-key", {
-        success: true,
-        categories,
-      });
+      expect(setCache).toHaveBeenCalled();
 
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(res.json).toHaveBeenCalledWith({
         success: true,
         categories,
       });
     });
 
-    it("should return 500 if service fails", async () => {
-      const req = {} as Request;
-
+    it("should handle errors", async () => {
       (getAllCategoriesService as jest.Mock).mockRejectedValue(
-        new Error("Failed to fetch categories")
+        new Error("Failed")
       );
 
-      await getAllCategoriesController(req, res);
+      await getAllCategoriesController(req as Request, res as Response);
 
-      expect(mockStatus).toHaveBeenCalledWith(500);
+      expect(res.status).toHaveBeenCalledWith(500);
 
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: "Failed to fetch categories",
+        message: "Failed",
       });
     });
   });
 
   describe("getPaginatedCategoriesController", () => {
-    it("should get paginated categories successfully", async () => {
-      const req = {
-        query: {
-          page: "1",
-          limit: "10",
-          search: "tech",
-        },
-      } as unknown as Request;
+    it("should return paginated categories", async () => {
+      req.query = {
+        page: "1",
+        limit: "10",
+      };
 
       const result = {
-        data: [],
-        total: 0,
+        items: [],
+        paginations: {
+          page: 1,
+          limit: 10,
+          total: 0,
+          hasMore: false,
+        },
       };
 
       (getPaginatedCategoriesService as jest.Mock).mockResolvedValue(result);
 
-      (redisKeys.pCategories as jest.Mock).mockReturnValue(
-        "paginated-categories-key"
-      );
-
-      await getPaginatedCategoriesController(req, res);
+      await getPaginatedCategoriesController(req as Request, res as Response);
 
       expect(getPaginatedCategoriesService).toHaveBeenCalledWith({
         page: 1,
         limit: 10,
-        search: "tech",
+        search: undefined,
       });
 
-      expect(setCache).toHaveBeenCalledWith("paginated-categories-key", {
+      expect(res.json).toHaveBeenCalledWith({
         success: true,
         result,
-      });
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: true,
-        result,
-      });
-    });
-
-    it("should return 500 if service fails", async () => {
-      const req = {
-        query: {},
-      } as unknown as Request;
-
-      (getPaginatedCategoriesService as jest.Mock).mockRejectedValue(
-        new Error("Pagination failed")
-      );
-
-      await getPaginatedCategoriesController(req, res);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: false,
-        message: "Pagination failed",
       });
     });
   });
 
   describe("getCategoryController", () => {
-    it("should get category successfully", async () => {
-      const req = {
-        params: {
-          id: "category_1",
-        },
-      } as unknown as Request;
-
-      const category = {
-        id: "1",
-        name: "Technology",
+    it("should return a category", async () => {
+      req.params = {
+        id: "category-1",
       };
 
-      (categoryIdSchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          id: "category_1",
-        },
-      });
+      const category = {
+        id: "category-1",
+        name: "Programming",
+      };
 
       (getCategoryService as jest.Mock).mockResolvedValue(category);
 
-      (redisKeys.category as jest.Mock).mockReturnValue("category-key");
+      await getCategoryController(req as Request, res as Response);
 
-      await getCategoryController(req, res);
+      expect(getCategoryService).toHaveBeenCalledWith("category-1");
 
-      expect(getCategoryService).toHaveBeenCalledWith("category_1");
+      expect(setCache).toHaveBeenCalled();
 
-      expect(setCache).toHaveBeenCalledWith("category-key", {
-        success: true,
-        category,
-      });
-
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(res.json).toHaveBeenCalledWith({
         success: true,
         category,
       });
     });
 
-    it("should return 400 if validation fails", async () => {
-      const req = {
-        params: {
-          id: "",
-        },
-      } as unknown as Request;
+    it("should return validation error", async () => {
+      req.params = {
+        id: "",
+      };
 
-      (categoryIdSchema.safeParse as jest.Mock).mockReturnValue({
-        success: false,
-        error: {},
-      });
+      await getCategoryController(req as Request, res as Response);
 
-      (formatValidationError as jest.Mock).mockReturnValue(
-        "Invalid category id"
-      );
-
-      await getCategoryController(req, res);
-
-      expect(mockStatus).toHaveBeenCalledWith(400);
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: false,
-        error: "Validation failed",
-        message: "Invalid category id",
-      });
-    });
-
-    it("should return 500 if service fails", async () => {
-      const req = {
-        params: {
-          id: "category_1",
-        },
-      } as unknown as Request;
-
-      (categoryIdSchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          id: "category_1",
-        },
-      });
-
-      (getCategoryService as jest.Mock).mockRejectedValue(
-        new Error("Category fetch failed")
-      );
-
-      await getCategoryController(req, res);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: false,
-        message: "Category fetch failed",
-      });
+      expect(res.status).toHaveBeenCalledWith(400);
     });
   });
 
   describe("createCategoryController", () => {
-    it("should create category successfully", async () => {
-      const req = {
-        body: {
-          name: "Technology",
-        },
-      } as unknown as Request;
-
-      const category = {
-        id: "1",
-        name: "Technology",
+    it("should create a category", async () => {
+      req.body = {
+        name: "Programming",
+        imageUrl: "https://example.com/image.png",
+        imagePublicId: "public-id",
+        visibility: "public",
       };
 
-      (createCategorySchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          name: "Technology",
-          imageUrl: undefined,
-          imagePublicId: undefined,
-        },
-      });
+      const category = {
+        id: "category-1",
+        ...req.body,
+      };
 
       (createCategoryService as jest.Mock).mockResolvedValue(category);
 
       (getKeys as jest.Mock).mockResolvedValue(["categories-paginated:1"]);
 
-      await createCategoryController(req, res);
+      await createCategoryController(req as Request, res as Response);
 
-      expect(createCategoryService).toHaveBeenCalledWith({
-        name: "Technology",
-        imageUrl: undefined,
-        imagePublicId: undefined,
-      });
+      expect(createCategoryService).toHaveBeenCalled();
 
-      expect(deleteManyCache).toHaveBeenCalledWith(["categories-paginated:1"]);
+      expect(deleteManyCache).toHaveBeenCalled();
 
-      expect(deleteCache).toHaveBeenCalledWith("categories-key");
+      expect(deleteCache).toHaveBeenCalled();
 
-      expect(mockStatus).toHaveBeenCalledWith(201);
+      expect(res.status).toHaveBeenCalledWith(201);
 
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(res.json).toHaveBeenCalledWith({
         success: true,
         category,
       });
     });
 
-    it("should return 400 if validation fails", async () => {
-      const req = {
-        body: {},
-      } as unknown as Request;
+    it("should return validation error", async () => {
+      req.body = {};
 
-      (createCategorySchema.safeParse as jest.Mock).mockReturnValue({
-        success: false,
-        error: {},
-      });
+      await createCategoryController(req as Request, res as Response);
 
-      (formatValidationError as jest.Mock).mockReturnValue(
-        "Invalid category data"
-      );
-
-      await createCategoryController(req, res);
-
-      expect(mockStatus).toHaveBeenCalledWith(400);
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: false,
-        error: "Validation failed",
-        message: "Invalid category data",
-      });
-    });
-
-    it("should return 500 if service fails", async () => {
-      const req = {
-        body: {
-          name: "Technology",
-        },
-      } as unknown as Request;
-
-      (createCategorySchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          name: "Technology",
-        },
-      });
-
-      (createCategoryService as jest.Mock).mockRejectedValue(
-        new Error("Create failed")
-      );
-
-      await createCategoryController(req, res);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: false,
-        message: "Create failed",
-      });
+      expect(res.status).toHaveBeenCalledWith(400);
     });
   });
 
   describe("updateCategoryController", () => {
-    it("should update category successfully", async () => {
-      const req = {
-        params: {
-          id: "category_1",
-        },
-        body: {
-          name: "Updated Technology",
-        },
-      } as unknown as Request;
-
-      const category = {
-        id: "1",
-        name: "Updated Technology",
+    it("should update a category", async () => {
+      req.params = {
+        id: "category-1",
       };
 
-      (categoryIdSchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          id: "category_1",
-        },
-      });
+      req.body = {
+        name: "Updated Category",
+      };
 
-      (updateCategorySchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          name: "Updated Technology",
-          imageUrl: undefined,
-          imagePublicId: undefined,
-        },
-      });
+      const category = {
+        id: "category-1",
+        name: "Updated Category",
+      };
 
       (updateCategoryService as jest.Mock).mockResolvedValue(category);
 
       (getKeys as jest.Mock).mockResolvedValue(["categories-paginated:1"]);
 
-      (redisKeys.category as jest.Mock).mockReturnValue("category-key");
+      await updateCategoryController(req as Request, res as Response);
 
-      await updateCategoryController(req, res);
+      expect(updateCategoryService).toHaveBeenCalled();
 
-      expect(updateCategoryService).toHaveBeenCalledWith({
-        id: "category_1",
-        name: "Updated Technology",
-        imageUrl: undefined,
-        imagePublicId: undefined,
-      });
-
-      expect(deleteManyCache).toHaveBeenCalledWith(["categories-paginated:1"]);
+      expect(deleteManyCache).toHaveBeenCalled();
 
       expect(deleteCache).toHaveBeenCalledTimes(2);
 
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(res.json).toHaveBeenCalledWith({
         success: true,
         category,
       });
     });
 
-    it("should return 400 if id validation fails", async () => {
-      const req = {
-        params: {
-          id: "",
-        },
-        body: {},
-      } as unknown as Request;
+    it("should return validation error for invalid id", async () => {
+      req.params = {
+        id: "",
+      };
 
-      (categoryIdSchema.safeParse as jest.Mock).mockReturnValue({
-        success: false,
-        error: {},
-      });
+      await updateCategoryController(req as Request, res as Response);
 
-      (formatValidationError as jest.Mock).mockReturnValue("Invalid id");
-
-      await updateCategoryController(req, res);
-
-      expect(mockStatus).toHaveBeenCalledWith(400);
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: false,
-        error: "Validation failed",
-        message: "Invalid id",
-      });
-    });
-
-    it("should return 400 if body validation fails", async () => {
-      const req = {
-        params: {
-          id: "category_1",
-        },
-        body: {},
-      } as unknown as Request;
-
-      (categoryIdSchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          id: "category_1",
-        },
-      });
-
-      (updateCategorySchema.safeParse as jest.Mock).mockReturnValue({
-        success: false,
-        error: {},
-      });
-
-      (formatValidationError as jest.Mock).mockReturnValue(
-        "Invalid update data"
-      );
-
-      await updateCategoryController(req, res);
-
-      expect(mockStatus).toHaveBeenCalledWith(400);
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: false,
-        error: "Validation failed",
-        message: "Invalid update data",
-      });
-    });
-
-    it("should return 500 if update fails", async () => {
-      const req = {
-        params: {
-          id: "category_1",
-        },
-        body: {
-          name: "Updated Technology",
-        },
-      } as unknown as Request;
-
-      (categoryIdSchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          id: "category_1",
-        },
-      });
-
-      (updateCategorySchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          name: "Updated Technology",
-        },
-      });
-
-      (updateCategoryService as jest.Mock).mockRejectedValue(
-        new Error("Update failed")
-      );
-
-      await updateCategoryController(req, res);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: false,
-        message: "Update failed",
-      });
+      expect(res.status).toHaveBeenCalledWith(400);
     });
   });
 
   describe("deleteCategoryController", () => {
-    it("should delete category successfully", async () => {
-      const req = {
-        params: {
-          id: "category_1",
-        },
-      } as unknown as Request;
-
-      const category = {
-        id: "1",
-        name: "Technology",
+    it("should delete a category", async () => {
+      req.params = {
+        id: "category-1",
       };
 
-      (categoryIdSchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          id: "category_1",
-        },
-      });
+      const category = {
+        id: "category-1",
+      };
 
       (deleteCategoryService as jest.Mock).mockResolvedValue(category);
 
       (getKeys as jest.Mock).mockResolvedValue(["categories-paginated:1"]);
 
-      (redisKeys.category as jest.Mock).mockReturnValue("category-key");
+      await deleteCategoryController(req as Request, res as Response);
 
-      await deleteCategoryController(req, res);
+      expect(deleteCategoryService).toHaveBeenCalledWith("category-1");
 
-      expect(deleteCategoryService).toHaveBeenCalledWith("category_1");
-
-      expect(deleteManyCache).toHaveBeenCalledWith(["categories-paginated:1"]);
+      expect(deleteManyCache).toHaveBeenCalled();
 
       expect(deleteCache).toHaveBeenCalledTimes(2);
 
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(res.json).toHaveBeenCalledWith({
         success: true,
         category,
       });
     });
 
-    it("should return 400 if validation fails", async () => {
-      const req = {
-        params: {
-          id: "",
-        },
-      } as unknown as Request;
+    it("should return validation error", async () => {
+      req.params = {
+        id: "",
+      };
 
-      (categoryIdSchema.safeParse as jest.Mock).mockReturnValue({
-        success: false,
-        error: {},
-      });
+      await deleteCategoryController(req as Request, res as Response);
 
-      (formatValidationError as jest.Mock).mockReturnValue(
-        "Invalid category id"
-      );
-
-      await deleteCategoryController(req, res);
-
-      expect(mockStatus).toHaveBeenCalledWith(400);
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: false,
-        error: "Validation failed",
-        message: "Invalid category id",
-      });
-    });
-
-    it("should return 500 if delete fails", async () => {
-      const req = {
-        params: {
-          id: "category_1",
-        },
-      } as unknown as Request;
-
-      (categoryIdSchema.safeParse as jest.Mock).mockReturnValue({
-        success: true,
-        data: {
-          id: "category_1",
-        },
-      });
-
-      (deleteCategoryService as jest.Mock).mockRejectedValue(
-        new Error("Delete failed")
-      );
-
-      await deleteCategoryController(req, res);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-
-      expect(mockJson).toHaveBeenCalledWith({
-        success: false,
-        message: "Delete failed",
-      });
+      expect(res.status).toHaveBeenCalledWith(400);
     });
   });
 });

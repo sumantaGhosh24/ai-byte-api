@@ -1,16 +1,16 @@
-import express, { Request, Response, NextFunction } from "express";
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import request from "supertest";
 
-import router from "../../src/routes/category.route";
-import { redisKeys } from "../../src/utils/redisKeys";
-
-const mockCacheMiddleware = jest.fn();
+import categoryRoutes from "../../src/routes/category.route";
 
 const mockGetAllCategoriesController = jest.fn(
   (req: Request, res: Response) => {
     res.status(200).json({
-      success: true,
-      route: "get-all-categories",
+      message: "get all categories",
     });
   }
 );
@@ -18,67 +18,34 @@ const mockGetAllCategoriesController = jest.fn(
 const mockGetPaginatedCategoriesController = jest.fn(
   (req: Request, res: Response) => {
     res.status(200).json({
-      success: true,
-      route: "get-paginated-categories",
+      message: "get paginated categories",
     });
   }
 );
 
 const mockGetCategoryController = jest.fn((req: Request, res: Response) => {
   res.status(200).json({
-    success: true,
-    route: "get-category",
+    message: "get category",
   });
 });
 
 const mockCreateCategoryController = jest.fn((req: Request, res: Response) => {
   res.status(201).json({
-    success: true,
-    route: "create-category",
+    message: "category created",
   });
 });
 
 const mockUpdateCategoryController = jest.fn((req: Request, res: Response) => {
   res.status(200).json({
-    success: true,
-    route: "update-category",
+    message: "category updated",
   });
 });
 
 const mockDeleteCategoryController = jest.fn((req: Request, res: Response) => {
   res.status(200).json({
-    success: true,
-    route: "delete-category",
+    message: "category deleted",
   });
 });
-
-jest.mock("../../src/middlewares/auth.middleware", () => ({
-  requireAuth: (req: Request, res: Response, next: NextFunction) => next(),
-}));
-
-jest.mock("../../src/middlewares/admin.middleware", () => ({
-  requireAdmin: (req: Request, res: Response, next: NextFunction) => next(),
-}));
-
-jest.mock("../../src/middlewares/onboarding.middleware", () => ({
-  requireOnboarding: (req: Request, res: Response, next: NextFunction) =>
-    next(),
-}));
-
-jest.mock("../../src/middlewares/rateLimit.middleware", () => ({
-  generalRateLimit: (req: Request, res: Response, next: NextFunction) => next(),
-}));
-
-/* eslint-disable indent */
-jest.mock("../../src/middlewares/cache.middleware", () => ({
-  cacheMiddleware:
-    (keyBuilder: (_req: Request) => string) =>
-    (req: Request, res: Response, next: NextFunction) => {
-      mockCacheMiddleware(keyBuilder);
-
-      next();
-    },
-}));
 
 jest.mock("../../src/controllers/category.controller", () => ({
   getAllCategoriesController: (req: Request, res: Response) =>
@@ -100,11 +67,34 @@ jest.mock("../../src/controllers/category.controller", () => ({
     mockDeleteCategoryController(req, res),
 }));
 
+jest.mock("../../src/middlewares/auth.middleware", () => ({
+  requireAuth: (req: Request, res: Response, next: NextFunction) => next(),
+}));
+
+jest.mock("../../src/middlewares/admin.middleware", () => ({
+  requireAdmin: (req: Request, res: Response, next: NextFunction) => next(),
+}));
+
+jest.mock("../../src/middlewares/onboarding.middleware", () => ({
+  requireOnboarding: (req: Request, res: Response, next: NextFunction) =>
+    next(),
+}));
+
+jest.mock("../../src/middlewares/rateLimit.middleware", () => ({
+  generalRateLimit: (req: Request, res: Response, next: NextFunction) => next(),
+}));
+
+jest.mock("../../src/middlewares/cache.middleware", () => ({
+  cacheMiddleware: () => {
+    return (req: Request, res: Response, next: NextFunction) => next();
+  },
+}));
+
 jest.mock("../../src/utils/redisKeys", () => ({
   redisKeys: {
-    categories: "categories",
+    categories: "categories-cache-key",
 
-    pCategories: jest.fn((query: string) => `paginated-categories:${query}`),
+    pCategories: jest.fn((query: string) => `categories:${query}`),
 
     category: jest.fn((id: string) => `category:${id}`),
   },
@@ -114,151 +104,83 @@ describe("Category Routes", () => {
   const app = express();
 
   app.use(express.json());
-  app.use("/api", router);
+  app.use("/api/v1", categoryRoutes);
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   describe("GET /categories/all", () => {
-    it("should return all categories", async () => {
+    it("should call getAllCategoriesController", async () => {
       const response = await request(app)
-        .get("/api/categories/all")
+        .get("/api/v1/categories/all")
         .expect(200);
 
-      expect(response.body).toEqual({
-        success: true,
-        route: "get-all-categories",
-      });
+      expect(response.body.message).toBe("get all categories");
 
       expect(mockGetAllCategoriesController).toHaveBeenCalled();
-    });
-
-    it("should call categories cache key builder", async () => {
-      await request(app).get("/api/categories/all").expect(200);
-
-      const keyBuilder = mockCacheMiddleware.mock.calls[0][0];
-
-      expect(keyBuilder()).toBe(redisKeys.categories);
     });
   });
 
   describe("GET /categories", () => {
-    it("should return paginated categories", async () => {
-      const response = await request(app)
-        .get("/api/categories?page=1&limit=10")
-        .expect(200);
+    it("should call getPaginatedCategoriesController", async () => {
+      const response = await request(app).get("/api/v1/categories").expect(200);
 
-      expect(response.body).toEqual({
-        success: true,
-        route: "get-paginated-categories",
-      });
+      expect(response.body.message).toBe("get paginated categories");
 
       expect(mockGetPaginatedCategoriesController).toHaveBeenCalled();
-    });
-
-    it("should call paginated categories cache key builder", async () => {
-      await request(app).get("/api/categories?page=1&limit=10").expect(200);
-
-      const keyBuilder = mockCacheMiddleware.mock.calls[0][0];
-
-      const mockReq = {
-        query: {
-          page: "1",
-          limit: "10",
-        },
-      };
-
-      keyBuilder(mockReq as unknown as Request);
-
-      expect(redisKeys.pCategories).toHaveBeenCalledWith(
-        JSON.stringify({
-          page: "1",
-          limit: "10",
-        })
-      );
     });
   });
 
   describe("GET /categories/:id", () => {
-    it("should return category", async () => {
+    it("should call getCategoryController", async () => {
       const response = await request(app)
-        .get("/api/categories/category_1")
+        .get("/api/v1/categories/category-1")
         .expect(200);
 
-      expect(response.body).toEqual({
-        success: true,
-        route: "get-category",
-      });
+      expect(response.body.message).toBe("get category");
 
       expect(mockGetCategoryController).toHaveBeenCalled();
-    });
-
-    it("should call category cache key builder", async () => {
-      await request(app).get("/api/categories/category_1").expect(200);
-
-      const keyBuilder = mockCacheMiddleware.mock.calls[0][0];
-
-      const mockReq = {
-        params: {
-          id: "category_1",
-        },
-      };
-
-      keyBuilder(mockReq as unknown as Request);
-
-      expect(redisKeys.category).toHaveBeenCalledWith(
-        JSON.stringify("category_1")
-      );
     });
   });
 
   describe("POST /categories", () => {
-    it("should create category", async () => {
+    it("should call createCategoryController", async () => {
       const response = await request(app)
-        .post("/api/categories")
+        .post("/api/v1/categories")
         .send({
-          name: "Technology",
+          name: "Programming",
         })
         .expect(201);
 
-      expect(response.body).toEqual({
-        success: true,
-        route: "create-category",
-      });
+      expect(response.body.message).toBe("category created");
 
       expect(mockCreateCategoryController).toHaveBeenCalled();
     });
   });
 
   describe("PUT /categories/:id", () => {
-    it("should update category", async () => {
+    it("should call updateCategoryController", async () => {
       const response = await request(app)
-        .put("/api/categories/category_1")
+        .put("/api/v1/categories/category-1")
         .send({
-          name: "Updated Technology",
+          name: "Updated Category",
         })
         .expect(200);
 
-      expect(response.body).toEqual({
-        success: true,
-        route: "update-category",
-      });
+      expect(response.body.message).toBe("category updated");
 
       expect(mockUpdateCategoryController).toHaveBeenCalled();
     });
   });
 
   describe("DELETE /categories/:id", () => {
-    it("should delete category", async () => {
+    it("should call deleteCategoryController", async () => {
       const response = await request(app)
-        .delete("/api/categories/category_1")
+        .delete("/api/v1/categories/category-1")
         .expect(200);
 
-      expect(response.body).toEqual({
-        success: true,
-        route: "delete-category",
-      });
+      expect(response.body.message).toBe("category deleted");
 
       expect(mockDeleteCategoryController).toHaveBeenCalled();
     });

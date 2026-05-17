@@ -17,28 +17,21 @@ jest.mock("@sentry/node", () => ({
   },
 }));
 
-const mockOrderBy = jest.fn();
-const mockOffset = jest.fn(() => ({
-  orderBy: mockOrderBy,
-}));
+jest.mock("../../src/db", () => {
+  const mockFindMany = jest.fn();
+  const mockSelect = jest.fn();
 
-const mockLimit = jest.fn(() => ({
-  offset: mockOffset,
-}));
-
-const mockWhere = jest.fn(() => ({
-  limit: mockLimit,
-}));
-
-const mockFrom = jest.fn(() => ({
-  where: mockWhere,
-}));
-
-jest.mock("../../src/db", () => ({
-  db: {
-    select: jest.fn(),
-  },
-}));
+  return {
+    db: {
+      query: {
+        users: {
+          findMany: mockFindMany,
+        },
+      },
+      select: mockSelect,
+    },
+  };
+});
 
 jest.mock("../../src/db/schema", () => ({
   users: {
@@ -48,8 +41,11 @@ jest.mock("../../src/db/schema", () => ({
 }));
 
 describe("getUsersService", () => {
+  let mockFindMany: jest.Mock;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFindMany = db.query.users.findMany as jest.Mock;
   });
 
   it("should return paginated users without search", async () => {
@@ -64,7 +60,7 @@ describe("getUsersService", () => {
       },
     ];
 
-    mockOrderBy.mockResolvedValue(mockUsers);
+    mockFindMany.mockResolvedValue(mockUsers);
 
     const mockCountWhere = jest.fn().mockResolvedValue([
       {
@@ -76,28 +72,21 @@ describe("getUsersService", () => {
       where: mockCountWhere,
     }));
 
-    (db.select as jest.Mock)
-      .mockReturnValueOnce({
-        from: mockFrom,
-      })
-      .mockReturnValueOnce({
-        from: mockCountFrom,
-      });
+    (db.select as jest.Mock).mockReturnValue({
+      from: mockCountFrom,
+    });
 
     const result = await getUsersService({
       page: 1,
       limit: 2,
     });
 
-    expect(db.select).toHaveBeenCalledTimes(2);
-
-    expect(mockFrom).toHaveBeenCalledWith(users);
-
-    expect(mockWhere).toHaveBeenCalledWith(undefined);
-
-    expect(mockLimit).toHaveBeenCalledWith(2);
-
-    expect(mockOffset).toHaveBeenCalledWith(0);
+    expect(mockFindMany).toHaveBeenCalledWith({
+      where: undefined,
+      limit: 2,
+      offset: 0,
+      orderBy: expect.anything(),
+    });
 
     expect(result).toEqual({
       items: mockUsers,
@@ -118,7 +107,7 @@ describe("getUsersService", () => {
       },
     ];
 
-    mockOrderBy.mockResolvedValue(mockUsers);
+    mockFindMany.mockResolvedValue(mockUsers);
 
     const mockCountWhere = jest.fn().mockResolvedValue([
       {
@@ -130,16 +119,11 @@ describe("getUsersService", () => {
       where: mockCountWhere,
     }));
 
-    (db.select as jest.Mock)
-      .mockReturnValueOnce({
-        from: mockFrom,
-      })
-      .mockReturnValueOnce({
-        from: mockCountFrom,
-      });
+    (db.select as jest.Mock).mockReturnValue({
+      from: mockCountFrom,
+    });
 
     (ilike as jest.Mock).mockReturnValue("search-filter");
-
     (and as jest.Mock).mockReturnValue("combined-filter");
 
     const result = await getUsersService({
@@ -149,10 +133,14 @@ describe("getUsersService", () => {
     });
 
     expect(ilike).toHaveBeenCalledWith(users.email, "%john%");
-
     expect(and).toHaveBeenCalledWith("search-filter");
 
-    expect(mockWhere).toHaveBeenCalledWith("combined-filter");
+    expect(mockFindMany).toHaveBeenCalledWith({
+      where: "combined-filter",
+      limit: 10,
+      offset: 0,
+      orderBy: expect.anything(),
+    });
 
     expect(result).toEqual({
       items: mockUsers,
@@ -172,7 +160,7 @@ describe("getUsersService", () => {
       },
     ];
 
-    mockOrderBy.mockResolvedValue(mockUsers);
+    mockFindMany.mockResolvedValue(mockUsers);
 
     const mockCountWhere = jest.fn().mockResolvedValue([
       {
@@ -184,13 +172,9 @@ describe("getUsersService", () => {
       where: mockCountWhere,
     }));
 
-    (db.select as jest.Mock)
-      .mockReturnValueOnce({
-        from: mockFrom,
-      })
-      .mockReturnValueOnce({
-        from: mockCountFrom,
-      });
+    (db.select as jest.Mock).mockReturnValue({
+      from: mockCountFrom,
+    });
 
     const result = await getUsersService({
       page: 1,
@@ -201,7 +185,7 @@ describe("getUsersService", () => {
   });
 
   it("should calculate offset correctly", async () => {
-    mockOrderBy.mockResolvedValue([]);
+    mockFindMany.mockResolvedValue([]);
 
     const mockCountWhere = jest.fn().mockResolvedValue([
       {
@@ -213,32 +197,27 @@ describe("getUsersService", () => {
       where: mockCountWhere,
     }));
 
-    (db.select as jest.Mock)
-      .mockReturnValueOnce({
-        from: mockFrom,
-      })
-      .mockReturnValueOnce({
-        from: mockCountFrom,
-      });
+    (db.select as jest.Mock).mockReturnValue({
+      from: mockCountFrom,
+    });
 
     await getUsersService({
       page: 3,
       limit: 5,
     });
 
-    expect(mockOffset).toHaveBeenCalledWith(10);
+    expect(mockFindMany).toHaveBeenCalledWith({
+      where: undefined,
+      limit: 5,
+      offset: 10,
+      orderBy: expect.anything(),
+    });
   });
 
   it("should throw and log error when db fails", async () => {
     const mockError = new Error("Database error");
 
-    mockWhere.mockImplementationOnce(() => {
-      throw mockError;
-    });
-
-    (db.select as jest.Mock).mockReturnValue({
-      from: mockFrom,
-    });
+    mockFindMany.mockRejectedValue(mockError);
 
     await expect(
       getUsersService({

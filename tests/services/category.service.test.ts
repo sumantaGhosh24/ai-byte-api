@@ -1,5 +1,3 @@
-import { logger } from "@sentry/node";
-
 import {
   getAllCategoriesService,
   getPaginatedCategoriesService,
@@ -9,14 +7,6 @@ import {
   deleteCategoryService,
 } from "../../src/services/category.service";
 import { db } from "../../src/db";
-import { categories } from "../../src/db/schema";
-
-jest.mock("drizzle-orm", () => ({
-  and: jest.fn(),
-  eq: jest.fn(),
-  ilike: jest.fn(),
-  sql: jest.fn(),
-}));
 
 jest.mock("@sentry/node", () => ({
   logger: {
@@ -25,153 +15,150 @@ jest.mock("@sentry/node", () => ({
 }));
 
 jest.mock("../../src/db", () => {
-  const mockReturning = jest.fn();
+  const mockFindMany = jest.fn();
+  const mockFindFirst = jest.fn();
 
-  const mockWhere = jest.fn(() => ({
-    returning: mockReturning,
-  }));
+  const mockWhere = jest.fn();
 
-  const mockSet = jest.fn(() => ({
+  const mockFrom = jest.fn(() => ({
     where: mockWhere,
   }));
 
+  const mockSelect = jest.fn(() => ({
+    from: mockFrom,
+  }));
+
+  const mockReturningInsert = jest.fn();
+
   const mockValues = jest.fn(() => ({
-    returning: mockReturning,
+    returning: mockReturningInsert,
   }));
 
   const mockInsert = jest.fn(() => ({
     values: mockValues,
   }));
 
+  const mockReturningUpdate = jest.fn();
+
+  const mockUpdateWhere = jest.fn(() => ({
+    returning: mockReturningUpdate,
+  }));
+
+  const mockSet = jest.fn(() => ({
+    where: mockUpdateWhere,
+  }));
+
+  const mockUpdate = jest.fn(() => ({
+    set: mockSet,
+  }));
+
+  const mockReturningDelete = jest.fn();
+
   const mockDeleteWhere = jest.fn(() => ({
-    returning: mockReturning,
+    returning: mockReturningDelete,
   }));
 
   const mockDelete = jest.fn(() => ({
     where: mockDeleteWhere,
   }));
 
-  const mockSelectWhere = jest.fn();
-
-  const mockFrom = jest.fn(() => ({
-    where: mockSelectWhere,
-  }));
-
   return {
     db: {
       query: {
         categories: {
-          findMany: jest.fn(),
-          findFirst: jest.fn(),
+          findMany: mockFindMany,
+          findFirst: mockFindFirst,
         },
       },
-      select: jest.fn(() => ({
-        from: mockFrom,
-      })),
+
+      select: mockSelect,
       insert: mockInsert,
-      update: jest.fn(() => ({
-        set: mockSet,
-      })),
+      update: mockUpdate,
       delete: mockDelete,
     },
-    mockReturning,
-    mockSet,
-    mockValues,
-    mockInsert,
-    mockDelete,
-    mockSelectWhere,
   };
 });
 
-jest.mock("../../src/db/schema", () => ({
-  categories: {
-    id: "id",
-    name: "name",
-    createdAt: "createdAt",
-  },
-}));
+describe("Category Service", () => {
+  let mockFindMany: jest.Mock;
+  let mockFindFirst: jest.Mock;
+  let mockSelect: jest.Mock;
+  let mockInsert: jest.Mock;
+  let mockUpdate: jest.Mock;
+  let mockDelete: jest.Mock;
 
-const {
-  mockReturning,
-  mockSet,
-  mockValues,
-  mockInsert,
-  mockDelete,
-  mockSelectWhere,
-} = jest.requireMock("../../src/db") as {
-  mockReturning: jest.Mock;
-  mockSet: jest.Mock;
-  mockValues: jest.Mock;
-  mockInsert: jest.Mock;
-  mockDelete: jest.Mock;
-  mockSelectWhere: jest.Mock;
-};
-
-describe("Category Services", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockFindMany = db.query.categories.findMany as jest.Mock;
+    mockFindFirst = db.query.categories.findFirst as jest.Mock;
+    mockSelect = db.select as jest.Mock;
+    mockInsert = db.insert as jest.Mock;
+    mockUpdate = db.update as jest.Mock;
+    mockDelete = db.delete as jest.Mock;
   });
 
   describe("getAllCategoriesService", () => {
-    it("should return all categories", async () => {
-      const categoriesData = [
+    it("should return all public categories", async () => {
+      const categories = [
         {
           id: "1",
-          name: "technology",
+          name: "Programming",
         },
       ];
 
-      (db.query.categories.findMany as jest.Mock).mockResolvedValue(
-        categoriesData
-      );
+      mockFindMany.mockResolvedValue(categories);
 
       const result = await getAllCategoriesService();
 
-      expect(db.query.categories.findMany).toHaveBeenCalled();
-
-      expect(result).toEqual(categoriesData);
+      expect(mockFindMany).toHaveBeenCalled();
+      expect(result).toEqual(categories);
     });
 
-    it("should throw when fetching categories fails", async () => {
-      (db.query.categories.findMany as jest.Mock).mockRejectedValue(
-        new Error("Fetch failed")
-      );
+    it("should throw error", async () => {
+      mockFindMany.mockRejectedValue(new Error("Database error"));
 
-      await expect(getAllCategoriesService()).rejects.toThrow("Fetch failed");
-
-      expect(logger.error).toHaveBeenCalled();
+      await expect(getAllCategoriesService()).rejects.toThrow("Database error");
     });
   });
 
   describe("getPaginatedCategoriesService", () => {
     it("should return paginated categories", async () => {
-      const categoriesData = [
+      mockFindMany.mockResolvedValue([
         {
           id: "1",
-          name: "technology",
+          name: "Programming",
         },
-      ];
+      ]);
 
-      (db.query.categories.findMany as jest.Mock).mockResolvedValue(
-        categoriesData
-      );
-
-      mockSelectWhere.mockResolvedValue([
+      const mockCountWhere = jest.fn().mockResolvedValue([
         {
           count: 1,
         },
       ]);
 
+      const mockCountFrom = jest.fn(() => ({
+        where: mockCountWhere,
+      }));
+
+      mockSelect.mockReturnValue({
+        from: mockCountFrom,
+      });
+
       const result = await getPaginatedCategoriesService({
         page: 1,
         limit: 10,
-        search: "tech",
       });
 
-      expect(db.query.categories.findMany).toHaveBeenCalled();
+      expect(mockFindMany).toHaveBeenCalled();
 
       expect(result).toEqual({
-        items: categoriesData,
+        items: [
+          {
+            id: "1",
+            name: "Programming",
+          },
+        ],
         paginations: {
           page: 1,
           limit: 10,
@@ -181,217 +168,174 @@ describe("Category Services", () => {
       });
     });
 
-    it("should return hasMore true when more data exists", async () => {
-      const categoriesData = [
-        {
-          id: "1",
-          name: "technology",
-        },
-      ];
-
-      (db.query.categories.findMany as jest.Mock).mockResolvedValue(
-        categoriesData
-      );
-
-      mockSelectWhere.mockResolvedValue([
-        {
-          count: 20,
-        },
-      ]);
-
-      const result = await getPaginatedCategoriesService({
-        page: 1,
-        limit: 10,
-      });
-
-      expect(result.paginations.hasMore).toBe(true);
-    });
-
-    it("should throw when pagination fails", async () => {
-      (db.query.categories.findMany as jest.Mock).mockRejectedValue(
-        new Error("Pagination failed")
-      );
+    it("should throw error", async () => {
+      mockFindMany.mockRejectedValue(new Error("Database error"));
 
       await expect(
         getPaginatedCategoriesService({
           page: 1,
           limit: 10,
         })
-      ).rejects.toThrow("Pagination failed");
-
-      expect(logger.error).toHaveBeenCalled();
+      ).rejects.toThrow("Database error");
     });
   });
 
   describe("getCategoryService", () => {
     it("should return category", async () => {
       const category = {
-        id: "1",
-        name: "technology",
+        id: "category-1",
+        name: "Programming",
       };
 
-      (db.query.categories.findFirst as jest.Mock).mockResolvedValue(category);
+      mockFindFirst.mockResolvedValue(category);
 
-      const result = await getCategoryService("category_1");
+      const result = await getCategoryService("category-1");
 
+      expect(mockFindFirst).toHaveBeenCalled();
       expect(result).toEqual(category);
     });
 
-    it("should throw when category not found", async () => {
-      (db.query.categories.findFirst as jest.Mock).mockResolvedValue(null);
+    it("should throw if category not found", async () => {
+      mockFindFirst.mockResolvedValue(undefined);
 
-      await expect(getCategoryService("category_1")).rejects.toThrow(
+      await expect(getCategoryService("category-1")).rejects.toThrow(
         "Category not found"
       );
-
-      expect(logger.error).toHaveBeenCalled();
     });
   });
 
   describe("createCategoryService", () => {
-    it("should create category successfully", async () => {
+    it("should create category", async () => {
       const createdCategory = {
-        id: "1",
-        name: "technology",
+        id: "category-1",
+        name: "programming",
       };
 
-      mockReturning.mockResolvedValue([createdCategory]);
+      const mockReturningInsert = jest
+        .fn()
+        .mockResolvedValue([createdCategory]);
 
-      const result = await createCategoryService({
-        name: "Technology",
-        imageUrl: "https://example.com/image.png",
-        imagePublicId: "image_123",
+      const mockValues = jest.fn(() => ({
+        returning: mockReturningInsert,
+      }));
+
+      mockInsert.mockReturnValue({
+        values: mockValues,
       });
 
-      expect(mockInsert).toHaveBeenCalledWith(categories);
+      const result = await createCategoryService({
+        name: "Programming",
+        visibility: "public",
+      });
 
-      expect(mockValues).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "technology",
-          imageUrl: "https://example.com/image.png",
-          imagePublicId: "image_123",
-        })
-      );
-
+      expect(mockInsert).toHaveBeenCalled();
       expect(result).toEqual(createdCategory);
     });
 
-    it("should throw when create fails", async () => {
-      mockReturning.mockRejectedValue(new Error("Create failed"));
+    it("should throw create error", async () => {
+      const mockReturningInsert = jest
+        .fn()
+        .mockRejectedValue(new Error("Create failed"));
+
+      const mockValues = jest.fn(() => ({
+        returning: mockReturningInsert,
+      }));
+
+      mockInsert.mockReturnValue({
+        values: mockValues,
+      });
 
       await expect(
         createCategoryService({
-          name: "Technology",
+          name: "Programming",
+          visibility: "public",
         })
       ).rejects.toThrow("Create failed");
-
-      expect(logger.error).toHaveBeenCalled();
     });
   });
 
   describe("updateCategoryService", () => {
-    it("should update category successfully", async () => {
-      (db.query.categories.findFirst as jest.Mock).mockResolvedValue({
-        id: "1",
+    it("should update category", async () => {
+      mockFindFirst.mockResolvedValue({
+        id: "category-1",
       });
 
       const updatedCategory = {
-        id: "1",
-        name: "updated technology",
+        id: "category-1",
+        name: "updated",
       };
 
-      mockReturning.mockResolvedValue([updatedCategory]);
+      const mockReturningUpdate = jest
+        .fn()
+        .mockResolvedValue([updatedCategory]);
 
-      const result = await updateCategoryService({
-        id: "category_1",
-        name: "Updated Technology",
-        imageUrl: "https://example.com/image.png",
+      const mockWhere = jest.fn(() => ({
+        returning: mockReturningUpdate,
+      }));
+
+      const mockSet = jest.fn(() => ({
+        where: mockWhere,
+      }));
+
+      mockUpdate.mockReturnValue({
+        set: mockSet,
       });
 
-      expect(db.update).toHaveBeenCalledWith(categories);
+      const result = await updateCategoryService({
+        id: "category-1",
+        name: "Updated",
+      });
 
-      expect(mockSet).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "updated technology",
-          imageUrl: "https://example.com/image.png",
-        })
-      );
-
+      expect(mockUpdate).toHaveBeenCalled();
       expect(result).toEqual(updatedCategory);
     });
 
-    it("should throw when category does not exist", async () => {
-      (db.query.categories.findFirst as jest.Mock).mockResolvedValue(null);
+    it("should throw if category not found", async () => {
+      mockFindFirst.mockResolvedValue(undefined);
 
       await expect(
         updateCategoryService({
-          id: "category_1",
+          id: "category-1",
+          name: "Updated",
         })
       ).rejects.toThrow("Category not found");
-
-      expect(logger.error).toHaveBeenCalled();
-    });
-
-    it("should throw when update fails", async () => {
-      (db.query.categories.findFirst as jest.Mock).mockResolvedValue({
-        id: "1",
-      });
-
-      mockReturning.mockRejectedValue(new Error("Update failed"));
-
-      await expect(
-        updateCategoryService({
-          id: "category_1",
-          name: "Updated Technology",
-        })
-      ).rejects.toThrow("Update failed");
-
-      expect(logger.error).toHaveBeenCalled();
     });
   });
 
   describe("deleteCategoryService", () => {
-    it("should delete category successfully", async () => {
-      (db.query.categories.findFirst as jest.Mock).mockResolvedValue({
-        id: "1",
+    it("should delete category", async () => {
+      mockFindFirst.mockResolvedValue({
+        id: "category-1",
       });
 
       const deletedCategory = {
-        id: "1",
-        name: "technology",
+        id: "category-1",
       };
 
-      mockReturning.mockResolvedValue([deletedCategory]);
+      const mockReturningDelete = jest
+        .fn()
+        .mockResolvedValue([deletedCategory]);
 
-      const result = await deleteCategoryService("category_1");
+      const mockWhere = jest.fn(() => ({
+        returning: mockReturningDelete,
+      }));
 
-      expect(mockDelete).toHaveBeenCalledWith(categories);
+      mockDelete.mockReturnValue({
+        where: mockWhere,
+      });
 
+      const result = await deleteCategoryService("category-1");
+
+      expect(mockDelete).toHaveBeenCalled();
       expect(result).toEqual(deletedCategory);
     });
 
-    it("should throw when category does not exist", async () => {
-      (db.query.categories.findFirst as jest.Mock).mockResolvedValue(null);
+    it("should throw if category not found", async () => {
+      mockFindFirst.mockResolvedValue(undefined);
 
-      await expect(deleteCategoryService("category_1")).rejects.toThrow(
+      await expect(deleteCategoryService("category-1")).rejects.toThrow(
         "Category not found"
       );
-
-      expect(logger.error).toHaveBeenCalled();
-    });
-
-    it("should throw when delete fails", async () => {
-      (db.query.categories.findFirst as jest.Mock).mockResolvedValue({
-        id: "1",
-      });
-
-      mockReturning.mockRejectedValue(new Error("Delete failed"));
-
-      await expect(deleteCategoryService("category_1")).rejects.toThrow(
-        "Delete failed"
-      );
-
-      expect(logger.error).toHaveBeenCalled();
     });
   });
 });

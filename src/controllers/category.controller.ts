@@ -132,12 +132,13 @@ export const createCategoryController = async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, imageUrl, imagePublicId } = validationResult.data;
+    const { name, imageUrl, imagePublicId, visibility } = validationResult.data;
 
     const category = await createCategoryService({
       name,
       imageUrl,
       imagePublicId,
+      visibility,
     });
 
     logger.info("Successfully created category");
@@ -197,13 +198,14 @@ export const updateCategoryController = async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, imageUrl, imagePublicId } = validationResult.data;
+    const { name, imageUrl, imagePublicId, visibility } = validationResult.data;
 
     const category = await updateCategoryService({
       id,
       name,
       imageUrl,
       imagePublicId,
+      visibility,
     });
 
     logger.info(`Successfully updated category ${id}`);

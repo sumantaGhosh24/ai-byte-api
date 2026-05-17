@@ -5,4 +5,6 @@ export const redisKeys = {
   categories: "categories:all",
   pCategories: (query: string) => `categories-paginated:${query}`,
   category: (id: string) => `category:${id}`,
+  courses: (query: string) => `courses:${query}`,
+  course: (id: string) => `course:${id}`,
 };

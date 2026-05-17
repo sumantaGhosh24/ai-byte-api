@@ -6,9 +6,11 @@ import { categories } from "../db/schema";
 
 export const getAllCategoriesService = async () => {
   try {
-    const categories = await db.query.categories.findMany();
+    const allCategories = await db.query.categories.findMany({
+      where: eq(categories.visibility, "public"),
+    });
 
-    return categories;
+    return allCategories;
   } catch (error) {
     logger.error("Error fetching all categories", { error });
 
@@ -44,9 +46,7 @@ export const getPaginatedCategoriesService = async ({
     });
 
     const total = await db
-      .select({
-        count: sql<number>`count(*)`,
-      })
+      .select({ count: sql<number>`count(*)` })
       .from(categories)
       .where(whereClause);
 
@@ -90,12 +90,14 @@ interface CreateCategoryParams {
   name: string;
   imageUrl?: string;
   imagePublicId?: string;
+  visibility: "public" | "private";
 }
 
 export const createCategoryService = async ({
   name,
   imageUrl,
   imagePublicId,
+  visibility,
 }: CreateCategoryParams) => {
   try {
     const [row] = await db
@@ -104,8 +106,7 @@ export const createCategoryService = async ({
         name: name.toLowerCase(),
         imageUrl,
         imagePublicId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        visibility,
       })
       .returning();
 
@@ -122,6 +123,7 @@ interface UpdateCategoryParams {
   name?: string;
   imageUrl?: string;
   imagePublicId?: string;
+  visibility?: "public" | "private";
 }
 
 export const updateCategoryService = async ({
@@ -129,6 +131,7 @@ export const updateCategoryService = async ({
   name,
   imageUrl,
   imagePublicId,
+  visibility,
 }: UpdateCategoryParams) => {
   try {
     const existingCategory = await db.query.categories.findFirst({
@@ -147,6 +150,7 @@ export const updateCategoryService = async ({
         ...(name !== undefined ? { name: name.toLowerCase() } : {}),
         ...(imageUrl !== undefined ? { imageUrl } : {}),
         ...(imagePublicId !== undefined ? { imagePublicId } : {}),
+        ...(visibility !== undefined ? { visibility } : {}),
         updatedAt: new Date(),
       })
       .where(eq(categories.id, id))

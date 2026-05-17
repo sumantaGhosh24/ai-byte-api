@@ -63,6 +63,23 @@ export const categories = pgTable("categories", {
   name: text("name").notNull(),
   imageUrl: text("image_url"),
   imagePublicId: text("image_public_id"),
+  visibility: text("visibility").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const courses = pgTable("courses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  categoryId: uuid("category_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  thumbnailPublicId: text("thumbnail_public_id"),
+  difficulty: text("difficulty").notNull(),
+  duration: text("duration").notNull(),
+  visibility: text("visibility").notNull(),
+  status: text("status").notNull(),
+  xpReward: integer("xp_reward").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -89,5 +106,16 @@ export const streaksRelations = relations(streaks, ({ one }) => ({
   user: one(users, {
     fields: [streaks.userId],
     references: [users.id],
+  }),
+}));
+
+export const categoriesRelations = relations(categories, ({ many }) => ({
+  courses: many(courses),
+}));
+
+export const coursesRelations = relations(courses, ({ one }) => ({
+  category: one(categories, {
+    fields: [courses.categoryId],
+    references: [categories.id],
   }),
 }));

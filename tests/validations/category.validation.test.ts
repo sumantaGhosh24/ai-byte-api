@@ -4,174 +4,131 @@ import {
   updateCategorySchema,
 } from "../../src/validations/category.validation";
 
-describe("Category Validation Schemas", () => {
+describe("Category Validation", () => {
   describe("categoryIdSchema", () => {
-    it("should validate valid category id", () => {
+    it("should validate valid id", () => {
       const result = categoryIdSchema.safeParse({
-        id: "category_123",
+        id: "category-1",
       });
 
       expect(result.success).toBe(true);
     });
 
-    it("should fail when id is empty", () => {
+    it("should fail for empty id", () => {
       const result = categoryIdSchema.safeParse({
         id: "",
       });
 
       expect(result.success).toBe(false);
-
-      if (!result.success) {
-        expect(result.error.issues[0]?.path).toEqual(["id"]);
-      }
-    });
-
-    it("should fail when id is missing", () => {
-      const result = categoryIdSchema.safeParse({});
-
-      expect(result.success).toBe(false);
-
-      if (!result.success) {
-        expect(result.error.issues[0]?.path).toEqual(["id"]);
-      }
     });
   });
 
   describe("createCategorySchema", () => {
-    it("should validate valid category data", () => {
-      const data = {
-        name: "Technology",
+    it("should validate valid payload", () => {
+      const payload = {
+        name: "Programming",
         imageUrl: "https://example.com/image.png",
-        imagePublicId: "category_123",
+        imagePublicId: "image-public-id",
+        visibility: "public",
       };
 
-      const result = createCategorySchema.safeParse(data);
+      const result = createCategorySchema.safeParse(payload);
 
       expect(result.success).toBe(true);
-    });
-
-    it("should validate with only required fields", () => {
-      const data = {
-        name: "Technology",
-      };
-
-      const result = createCategorySchema.safeParse(data);
-
-      expect(result.success).toBe(true);
-    });
-
-    it("should fail when name is empty", () => {
-      const result = createCategorySchema.safeParse({
-        name: "",
-      });
-
-      expect(result.success).toBe(false);
-
-      if (!result.success) {
-        expect(result.error.issues[0]?.path).toEqual(["name"]);
-      }
     });
 
     it("should fail when name is missing", () => {
-      const result = createCategorySchema.safeParse({
+      const payload = {
         imageUrl: "https://example.com/image.png",
-      });
+        imagePublicId: "image-public-id",
+        visibility: "public",
+      };
+
+      const result = createCategorySchema.safeParse(payload);
 
       expect(result.success).toBe(false);
-
-      if (!result.success) {
-        expect(result.error.issues[0]?.path).toEqual(["name"]);
-      }
     });
 
-    it("should fail when imageUrl is not string", () => {
-      const result = createCategorySchema.safeParse({
-        name: "Technology",
-        imageUrl: 123,
-      });
+    it("should fail when visibility is invalid", () => {
+      const payload = {
+        name: "Programming",
+        imageUrl: "https://example.com/image.png",
+        imagePublicId: "image-public-id",
+        visibility: "hidden",
+      };
+
+      const result = createCategorySchema.safeParse(payload);
 
       expect(result.success).toBe(false);
-
-      if (!result.success) {
-        expect(result.error.issues[0]?.path).toEqual(["imageUrl"]);
-      }
     });
 
-    it("should fail when imagePublicId is not string", () => {
-      const result = createCategorySchema.safeParse({
-        name: "Technology",
-        imagePublicId: 123,
-      });
+    it("should fail when imageUrl is missing", () => {
+      const payload = {
+        name: "Programming",
+        imagePublicId: "image-public-id",
+        visibility: "public",
+      };
+
+      const result = createCategorySchema.safeParse(payload);
 
       expect(result.success).toBe(false);
+    });
 
-      if (!result.success) {
-        expect(result.error.issues[0]?.path).toEqual(["imagePublicId"]);
-      }
+    it("should fail when imagePublicId is missing", () => {
+      const payload = {
+        name: "Programming",
+        imageUrl: "https://example.com/image.png",
+        visibility: "public",
+      };
+
+      const result = createCategorySchema.safeParse(payload);
+
+      expect(result.success).toBe(false);
     });
   });
 
   describe("updateCategorySchema", () => {
-    it("should validate valid update data", () => {
-      const data = {
-        name: "Updated Technology",
-        imageUrl: "https://example.com/image.png",
-        imagePublicId: "category_456",
+    it("should validate partial payload", () => {
+      const payload = {
+        name: "Updated Category",
       };
 
-      const result = updateCategorySchema.safeParse(data);
+      const result = updateCategorySchema.safeParse(payload);
 
       expect(result.success).toBe(true);
     });
 
-    it("should validate empty object", () => {
-      const result = updateCategorySchema.safeParse({});
-
-      expect(result.success).toBe(true);
-    });
-
-    it("should validate partial update data", () => {
-      const result = updateCategorySchema.safeParse({
+    it("should validate full payload", () => {
+      const payload = {
         name: "Updated Category",
-      });
+        imageUrl: "https://example.com/image.png",
+        imagePublicId: "public-id",
+        visibility: "private",
+      };
+
+      const result = updateCategorySchema.safeParse(payload);
 
       expect(result.success).toBe(true);
     });
 
-    it("should fail when name is empty", () => {
-      const result = updateCategorySchema.safeParse({
+    it("should fail for invalid visibility", () => {
+      const payload = {
+        visibility: "invalid",
+      };
+
+      const result = updateCategorySchema.safeParse(payload);
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should fail for empty name", () => {
+      const payload = {
         name: "",
-      });
+      };
+
+      const result = updateCategorySchema.safeParse(payload);
 
       expect(result.success).toBe(false);
-
-      if (!result.success) {
-        expect(result.error.issues[0]?.path).toEqual(["name"]);
-      }
-    });
-
-    it("should fail when imageUrl is not string", () => {
-      const result = updateCategorySchema.safeParse({
-        imageUrl: 123,
-      });
-
-      expect(result.success).toBe(false);
-
-      if (!result.success) {
-        expect(result.error.issues[0]?.path).toEqual(["imageUrl"]);
-      }
-    });
-
-    it("should fail when imagePublicId is not string", () => {
-      const result = updateCategorySchema.safeParse({
-        imagePublicId: 123,
-      });
-
-      expect(result.success).toBe(false);
-
-      if (!result.success) {
-        expect(result.error.issues[0]?.path).toEqual(["imagePublicId"]);
-      }
     });
   });
 });

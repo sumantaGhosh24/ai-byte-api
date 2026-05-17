@@ -26,13 +26,12 @@ export const getUsersService = async ({
 
     const whereClause = filters.length > 0 ? and(...filters) : undefined;
 
-    const data = await db
-      .select()
-      .from(users)
-      .where(whereClause)
-      .limit(limit)
-      .offset(offset)
-      .orderBy(sql`${users.createdAt} DESC`);
+    const data = await db.query.users.findMany({
+      where: whereClause,
+      limit,
+      offset,
+      orderBy: (users, { desc }) => [desc(users.createdAt)],
+    });
 
     const total = await db
       .select({ count: sql<number>`count(*)` })
