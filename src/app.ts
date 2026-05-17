@@ -6,6 +6,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import * as Sentry from "@sentry/node";
 import { clerkMiddleware } from "@clerk/express";
+import { serve } from "inngest/express";
 
 import corsOptions from "./config/corsOptions";
 import securityMiddleware from "./middlewares/security.middleware";
@@ -14,6 +15,8 @@ import { sentryClerkUserMiddleware } from "./middlewares/sentryClerkUser.middlew
 import userRoutes from "./routes/user.route";
 import profileRoutes from "./routes/profile.route";
 import categoryRoutes from "./routes/category.route";
+import { inngest } from "./inngest/client";
+import { helloWorld } from "./inngest/functions/hello";
 
 const app = express();
 
@@ -56,6 +59,14 @@ app.get("/api", (req, res) => {
     .status(200)
     .json({ success: true, message: "AIByte Website API is working!" });
 });
+
+app.use(
+  "/api/inngest",
+  serve({
+    client: inngest,
+    functions: [helloWorld],
+  })
+);
 
 app.use("/api", userRoutes);
 app.use("/api", profileRoutes);
