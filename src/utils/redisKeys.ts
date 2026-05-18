@@ -7,4 +7,7 @@ export const redisKeys = {
   category: (id: string) => `category:${id}`,
   courses: (query: string) => `courses:${query}`,
   course: (id: string) => `course:${id}`,
+  lessons: (courseId: string) => `lessons:${courseId}`,
+  publicLessons: (courseId: string) => `public-lessons:${courseId}`,
+  lesson: (id: string) => `lesson:${id}`,
 };

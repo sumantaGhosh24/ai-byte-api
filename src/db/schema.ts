@@ -84,6 +84,24 @@ export const courses = pgTable("courses", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const lessons = pgTable("lessons", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  courseId: uuid("course_id").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  thumbnailPublicId: text("thumbnail_public_id"),
+  videoUrl: text("video_url"),
+  videoPublicId: text("video_public_id"),
+  duration: text("duration").notNull(),
+  visibility: text("visibility").notNull(),
+  status: text("status").notNull(),
+  xpReward: integer("xp_reward").notNull(),
+  orderIndex: integer("order_index").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const usersRelations = relations(users, ({ one }) => ({
   profile: one(profiles, {
     fields: [users.id],
@@ -113,9 +131,17 @@ export const categoriesRelations = relations(categories, ({ many }) => ({
   courses: many(courses),
 }));
 
-export const coursesRelations = relations(courses, ({ one }) => ({
+export const coursesRelations = relations(courses, ({ one, many }) => ({
   category: one(categories, {
     fields: [courses.categoryId],
     references: [categories.id],
+  }),
+  lessons: many(lessons),
+}));
+
+export const lessonsRelations = relations(lessons, ({ one }) => ({
+  course: one(courses, {
+    fields: [lessons.courseId],
+    references: [courses.id],
   }),
 }));
