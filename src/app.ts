@@ -17,6 +17,7 @@ import profileRoutes from "./routes/profile.route";
 import categoryRoutes from "./routes/category.route";
 import courseRoutes from "./routes/course.route";
 import lessonRoutes from "./routes/lesson.route";
+import progressRoutes from "./routes/progress.route";
 import { inngest } from "./inngest/client";
 import { helloWorld } from "./inngest/functions/hello";
 
@@ -75,6 +76,7 @@ app.use("/api", profileRoutes);
 app.use("/api", categoryRoutes);
 app.use("/api", courseRoutes);
 app.use("/api", lessonRoutes);
+app.use("/api", progressRoutes);
 
 app.use((req, res) => {
   Sentry.logger.error("Not Found", {

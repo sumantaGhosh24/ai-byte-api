@@ -5,6 +5,7 @@ import {
   boolean,
   timestamp,
   integer,
+  unique,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -102,6 +103,21 @@ export const lessons = pgTable("lessons", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const progress = pgTable(
+  "progress",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull(),
+    lessonId: uuid("lesson_id").notNull(),
+    watchPercentage: integer("watch_percentage").default(0).notNull(),
+    completed: boolean("completed").default(false).notNull(),
+    lastTimestamp: text("last_timestamp"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  table => [unique("user_lesson_unique").on(table.userId, table.lessonId)]
+);
+
 export const usersRelations = relations(users, ({ one }) => ({
   profile: one(profiles, {
     fields: [users.id],
@@ -139,9 +155,21 @@ export const coursesRelations = relations(courses, ({ one, many }) => ({
   lessons: many(lessons),
 }));
 
-export const lessonsRelations = relations(lessons, ({ one }) => ({
+export const lessonsRelations = relations(lessons, ({ one, many }) => ({
   course: one(courses, {
     fields: [lessons.courseId],
     references: [courses.id],
+  }),
+  progress: many(progress),
+}));
+
+export const progressRelations = relations(progress, ({ one }) => ({
+  user: one(users, {
+    fields: [progress.userId],
+    references: [users.id],
+  }),
+  lesson: one(lessons, {
+    fields: [progress.lessonId],
+    references: [lessons.id],
   }),
 }));
