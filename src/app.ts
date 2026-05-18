@@ -18,6 +18,10 @@ import categoryRoutes from "./routes/category.route";
 import courseRoutes from "./routes/course.route";
 import lessonRoutes from "./routes/lesson.route";
 import progressRoutes from "./routes/progress.route";
+import quizzeRoutes from "./routes/quizze.route";
+import questionRoutes from "./routes/question.route";
+import quizzeAttemptRoutes from "./routes/quizzeAttempt.route";
+import answerSubmissionRoutes from "./routes/answerSubmission.route";
 import { inngest } from "./inngest/client";
 import { helloWorld } from "./inngest/functions/hello";
 
@@ -77,6 +81,10 @@ app.use("/api", categoryRoutes);
 app.use("/api", courseRoutes);
 app.use("/api", lessonRoutes);
 app.use("/api", progressRoutes);
+app.use("/api", quizzeRoutes);
+app.use("/api", questionRoutes);
+app.use("/api", quizzeAttemptRoutes);
+app.use("/api", answerSubmissionRoutes);
 
 app.use((req, res) => {
   Sentry.logger.error("Not Found", {

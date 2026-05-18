@@ -10,4 +10,14 @@ export const redisKeys = {
   lessons: (courseId: string) => `lessons:${courseId}`,
   publicLessons: (courseId: string) => `public-lessons:${courseId}`,
   lesson: (id: string) => `lesson:${id}`,
+  quizzes: (courseId: string) => `quizzes:${courseId}`,
+  quizze: (id: string) => `quizze:${id}`,
+  questions: (quizId: string) => `questions:${quizId}`,
+  question: (id: string) => `question:${id}`,
+  quizAttempts: (userId: string, quizId: string) =>
+    `quiz-attempts:${userId}:${quizId}`,
+  quizAttempt: (id: string) => `quiz-attempt:${id}`,
+  answerSubmissions: (quizAttemptId: string) =>
+    `answer-submissions:${quizAttemptId}`,
+  answerSubmission: (id: string) => `answer-submission:${id}`,
 };

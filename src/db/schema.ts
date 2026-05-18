@@ -118,7 +118,46 @@ export const progress = pgTable(
   table => [unique("user_lesson_unique").on(table.userId, table.lessonId)]
 );
 
-export const usersRelations = relations(users, ({ one }) => ({
+export const quizzes = pgTable("quizzes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  courseId: uuid("course_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  difficulty: text("difficulty").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const questions = pgTable("questions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  quizId: uuid("quiz_id").notNull(),
+  question: text("question").notNull(),
+  optionA: text("optiona").notNull(),
+  optionB: text("optionb").notNull(),
+  optionC: text("optionc").notNull(),
+  optionD: text("optiond").notNull(),
+  correctAnswer: text("correct_answer").notNull(),
+  explanation: text("explanation"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const quizAttempts = pgTable("quiz_attempts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull(),
+  quizId: uuid("quiz_id").notNull(),
+  score: integer("score").notNull(),
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+});
+
+export const answerSubmissions = pgTable("answer_submissions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  quizAttemptId: uuid("quiz_attempt_id").notNull(),
+  userAnswer: text("user_answer").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const usersRelations = relations(users, ({ one, many }) => ({
   profile: one(profiles, {
     fields: [users.id],
     references: [profiles.userId],
@@ -127,6 +166,7 @@ export const usersRelations = relations(users, ({ one }) => ({
     fields: [users.id],
     references: [streaks.userId],
   }),
+  quizAttempts: many(quizAttempts),
 }));
 
 export const profilesRelations = relations(profiles, ({ one }) => ({
@@ -153,6 +193,7 @@ export const coursesRelations = relations(courses, ({ one, many }) => ({
     references: [categories.id],
   }),
   lessons: many(lessons),
+  quizzes: many(quizzes),
 }));
 
 export const lessonsRelations = relations(lessons, ({ one, many }) => ({
@@ -173,3 +214,44 @@ export const progressRelations = relations(progress, ({ one }) => ({
     references: [lessons.id],
   }),
 }));
+
+export const quizzesRelations = relations(quizzes, ({ one, many }) => ({
+  course: one(courses, {
+    fields: [quizzes.courseId],
+    references: [courses.id],
+  }),
+  questions: many(questions),
+  attempts: many(quizAttempts),
+}));
+
+export const questionsRelations = relations(questions, ({ one }) => ({
+  quiz: one(quizzes, {
+    fields: [questions.quizId],
+    references: [quizzes.id],
+  }),
+}));
+
+export const quizAttemptsRelations = relations(
+  quizAttempts,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [quizAttempts.userId],
+      references: [users.id],
+    }),
+    quiz: one(quizzes, {
+      fields: [quizAttempts.quizId],
+      references: [quizzes.id],
+    }),
+    answerSubmissions: many(answerSubmissions),
+  })
+);
+
+export const answerSubmissionsRelations = relations(
+  answerSubmissions,
+  ({ one }) => ({
+    quizAttempt: one(quizAttempts, {
+      fields: [answerSubmissions.quizAttemptId],
+      references: [quizAttempts.id],
+    }),
+  })
+);
