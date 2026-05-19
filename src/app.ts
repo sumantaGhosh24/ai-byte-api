@@ -24,6 +24,7 @@ import quizzeAttemptRoutes from "./routes/quizzeAttempt.route";
 import answerSubmissionRoutes from "./routes/answerSubmission.route";
 import notificationRoutes from "./routes/notification.route";
 import streakRoutes from "./routes/streak.route";
+import bookmarkRoutes from "./routes/bookmark.route";
 import { inngest } from "./inngest/client";
 import { helloWorld } from "./inngest/functions/hello";
 
@@ -84,6 +85,7 @@ app.use("/api", streakRoutes);
 app.use("/api", categoryRoutes);
 app.use("/api", courseRoutes);
 app.use("/api", lessonRoutes);
+app.use("/api", bookmarkRoutes);
 app.use("/api", progressRoutes);
 app.use("/api", quizzeRoutes);
 app.use("/api", questionRoutes);

@@ -133,6 +133,19 @@ export const lessons = pgTable("lessons", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const bookmarks = pgTable(
+  "bookmarks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull(),
+    lessonId: uuid("lesson_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => [
+    unique("user_lesson_bookmark_unique").on(table.userId, table.lessonId),
+  ]
+);
+
 export const progress = pgTable(
   "progress",
   {
@@ -199,6 +212,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   quizAttempts: many(quizAttempts),
   notificationTokens: many(notificationTokens),
   notifications: many(notifications),
+  bookmarks: many(bookmarks),
 }));
 
 export const profilesRelations = relations(profiles, ({ one }) => ({
@@ -271,6 +285,18 @@ export const lessonsRelations = relations(lessons, ({ one, many }) => ({
   progress: many(progress),
   notifications: many(notifications, {
     relationName: "notification_related_lesson",
+  }),
+  bookmarks: many(bookmarks),
+}));
+
+export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
+  user: one(users, {
+    fields: [bookmarks.userId],
+    references: [users.id],
+  }),
+  lesson: one(lessons, {
+    fields: [bookmarks.lessonId],
+    references: [lessons.id],
   }),
 }));
 
