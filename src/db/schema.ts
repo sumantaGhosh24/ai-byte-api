@@ -85,6 +85,7 @@ export const streaks = pgTable("streaks", {
   userId: uuid("user_id").notNull().unique(),
   currentStreak: integer("current_streak").default(0).notNull(),
   longestStreak: integer("longest_streak").default(0).notNull(),
+  lastCheckInAt: timestamp("last_check_in_at"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
