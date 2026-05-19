@@ -5,6 +5,7 @@ import {
   getPublicCoursesController,
   getCourseController,
   createCourseController,
+  generateCourseController,
   updateCourseController,
   deleteCourseController,
   getPublicCourseController,
@@ -61,6 +62,8 @@ router.post(
   generalRateLimit,
   createCourseController
 );
+
+router.post("/generate-course", requireAdmin, generateCourseController);
 
 router.put(
   "/courses/:id",

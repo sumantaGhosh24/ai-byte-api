@@ -22,6 +22,7 @@ import {
   setCache,
 } from "../utils/cache";
 import { redisKeys } from "../utils/redisKeys";
+import { inngest } from "../inngest/client";
 
 export const getAllCoursesController = async (req: Request, res: Response) => {
   try {
@@ -246,6 +247,53 @@ export const createCourseController = async (req: Request, res: Response) => {
     }
 
     res.status(201).json({ success: true, course });
+  } catch (error: unknown) {
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return;
+  }
+};
+
+export const generateCourseController = async (req: Request, res: Response) => {
+  try {
+    logger.info("Started generating course");
+
+    const validationResult = createCourseSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      logger.error("Validation failed to create course", {
+        error: formatValidationError(validationResult.error),
+      });
+
+      res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        message: formatValidationError(validationResult.error),
+      });
+      return;
+    }
+
+    const { difficulty } = validationResult.data;
+
+    await inngest.send({
+      name: "course/generate.requested",
+      data: {
+        topic: "",
+        difficulty,
+        lessonCount: 10,
+      },
+    });
+
+    logger.info("Successfully started course generation");
+
+    const keys = await getKeys("courses:*");
+    if (keys?.length) {
+      await deleteManyCache(keys);
+    }
+
+    res.status(201).json({ success: true });
   } catch (error: unknown) {
     res.status(500).json({
       success: false,

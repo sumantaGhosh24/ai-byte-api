@@ -12,6 +12,8 @@ import corsOptions from "./config/corsOptions";
 import securityMiddleware from "./middlewares/security.middleware";
 import { clerkWebhookHandler } from "./webhooks/clerk";
 import { sentryClerkUserMiddleware } from "./middlewares/sentryClerkUser.middleware";
+import { inngest } from "./inngest/client";
+import generateCourse from "./inngest/functions/generateCourse";
 import userRoutes from "./routes/user.route";
 import profileRoutes from "./routes/profile.route";
 import categoryRoutes from "./routes/category.route";
@@ -26,8 +28,7 @@ import notificationRoutes from "./routes/notification.route";
 import streakRoutes from "./routes/streak.route";
 import bookmarkRoutes from "./routes/bookmark.route";
 import achievementRoutes from "./routes/achievement.route";
-import { inngest } from "./inngest/client";
-import { helloWorld } from "./inngest/functions/hello";
+import dashboardRoutes from "./routes/dashboard.route";
 
 const app = express();
 
@@ -75,7 +76,7 @@ app.use(
   "/api/inngest",
   serve({
     client: inngest,
-    functions: [helloWorld],
+    functions: [generateCourse],
   })
 );
 
@@ -93,6 +94,7 @@ app.use("/api", questionRoutes);
 app.use("/api", quizzeAttemptRoutes);
 app.use("/api", answerSubmissionRoutes);
 app.use("/api", achievementRoutes);
+app.use("/api", dashboardRoutes);
 
 app.use((req, res) => {
   Sentry.logger.error("Not Found", {

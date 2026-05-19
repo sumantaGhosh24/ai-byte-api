@@ -1,8 +1,11 @@
 import { and, eq, ilike, sql } from "drizzle-orm";
 import { logger } from "@sentry/node";
+import { generateText } from "ai";
+import { z } from "zod";
 
 import { db } from "../db";
 import { courses } from "../db/schema";
+import { geminiModel } from "../config/ai";
 
 interface GetCoursesParams {
   page: number;
@@ -218,6 +221,82 @@ export const createCourseService = async ({
 
     throw error;
   }
+};
+
+const courseSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  lessons: z.array(
+    z.object({
+      title: z.string(),
+      summary: z.string(),
+      quizQuestion: z.string(),
+      options: z.array(z.string()),
+      correctAnswer: z.string(),
+      explanation: z.string(),
+    })
+  ),
+});
+
+type GenerateCourseInput = {
+  topic: string;
+  difficulty: string;
+  lessonCount: number;
+};
+
+export const generateCourseWithAI = async ({
+  topic,
+  difficulty,
+  lessonCount,
+}: GenerateCourseInput) => {
+  const prompt = `
+Generate a complete learning course as STRICT JSON only.
+
+Topic: ${topic}
+Difficulty: ${difficulty}
+Lessons: ${lessonCount}
+
+Return this exact structure:
+
+{
+  "title": "string",
+  "description": "string",
+  "lessons": [
+    {
+      "title": "string",
+      "summary": "string",
+      "quizQuestion": "string",
+      "options": ["string"],
+      "correctAnswer": "string",
+      "explanation": "string"
+    }
+  ]
+}
+
+Rules:
+- No markdown
+- No code blocks
+- No explanations
+- JSON only
+- Valid parsable JSON only
+`;
+
+  const result = await generateText({
+    model: geminiModel,
+    prompt,
+  });
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(result.text);
+  } catch {
+    throw new Error("AI returned invalid JSON");
+  }
+
+  const validated = courseSchema.parse(parsed);
+
+  return validated;
 };
 
 interface UpdateCourseParams {
