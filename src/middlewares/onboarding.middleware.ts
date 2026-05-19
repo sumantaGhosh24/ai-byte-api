@@ -28,6 +28,17 @@ export const requireOnboarding = async (
 
     const user = await getLocalUser(userId);
 
+    if (!user) {
+      logger.error("Unauthenticated", {
+        reason: "User not authenticated",
+      });
+
+      return res.status(401).json({
+        success: false,
+        message: "User not authenticated",
+      });
+    }
+
     const [profile] = await db
       .select()
       .from(profiles)

@@ -43,8 +43,8 @@ export const getUsersService = async ({
       paginations: {
         page,
         limit,
-        total: Number(total[0].count),
-        hasMore: offset + data.length < Number(total[0].count),
+        total: Number(total[0]?.count),
+        hasMore: offset + data.length < Number(total[0]?.count),
       },
     };
   } catch (error) {

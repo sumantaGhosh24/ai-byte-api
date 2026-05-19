@@ -21,24 +21,24 @@ import {
 export const getAdminDashboardService = async () => {
   try {
     const [
-      [{ count: userCount }],
-      [{ count: newUsersThisMonth }],
-      [{ count: lessonCount }],
-      [{ count: courseCount }],
-      [{ count: quizCount }],
-      [{ count: questionCount }],
-      [{ count: achievementCount }],
-      [{ count: bookmarkCount }],
-      [{ count: streakCount }],
-      [{ count: activeStreaks }],
-      [{ count: completedLessonCount }],
-      [{ count: notificationCount }],
+      usersCountArr,
+      newUsersThisMonthArr,
+      lessonCountArr,
+      courseCountArr,
+      quizCountArr,
+      questionCountArr,
+      achievementCountArr,
+      bookmarkCountArr,
+      streakCountArr,
+      activeStreaksArr,
+      completedLessonCountArr,
+      notificationCountArr,
       latestUsers,
       latestCourses,
       latestLessons,
       latestQuizzes,
       latestAchievements,
-      [{ count: categoryCount }],
+      categoryCountArr,
       latestCategories,
     ] = await Promise.all([
       db.select({ count: sql<number>`count(*)` }).from(users),
@@ -97,20 +97,25 @@ export const getAdminDashboardService = async () => {
         .limit(5),
     ]);
 
+    const getCount = (arr: { count: number }[] | undefined) =>
+      arr && arr.length > 0 && typeof arr[0]?.count === "number"
+        ? arr[0].count
+        : 0;
+
     return {
-      userCount: Number(userCount || 0),
-      newUsersThisMonth: Number(newUsersThisMonth || 0),
-      lessonCount: Number(lessonCount || 0),
-      courseCount: Number(courseCount || 0),
-      quizCount: Number(quizCount || 0),
-      questionCount: Number(questionCount || 0),
-      achievementCount: Number(achievementCount || 0),
-      bookmarkCount: Number(bookmarkCount || 0),
-      streakCount: Number(streakCount || 0),
-      activeStreaks: Number(activeStreaks || 0),
-      completedLessonCount: Number(completedLessonCount || 0),
-      notificationCount: Number(notificationCount || 0),
-      categoryCount: Number(categoryCount || 0),
+      userCount: Number(getCount(usersCountArr)),
+      newUsersThisMonth: Number(getCount(newUsersThisMonthArr)),
+      lessonCount: Number(getCount(lessonCountArr)),
+      courseCount: Number(getCount(courseCountArr)),
+      quizCount: Number(getCount(quizCountArr)),
+      questionCount: Number(getCount(questionCountArr)),
+      achievementCount: Number(getCount(achievementCountArr)),
+      bookmarkCount: Number(getCount(bookmarkCountArr)),
+      streakCount: Number(getCount(streakCountArr)),
+      activeStreaks: Number(getCount(activeStreaksArr)),
+      completedLessonCount: Number(getCount(completedLessonCountArr)),
+      notificationCount: Number(getCount(notificationCountArr)),
+      categoryCount: Number(getCount(categoryCountArr)),
       latestUsers,
       latestCourses,
       latestLessons,
@@ -120,7 +125,6 @@ export const getAdminDashboardService = async () => {
     };
   } catch (error) {
     logger.error("Error fetching admin dashboard data", { error });
-
     throw error;
   }
 };

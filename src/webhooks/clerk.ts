@@ -55,13 +55,15 @@ export async function clerkWebhookHandler(req: Request, res: Response) {
         .returning();
 
       await db.transaction(async tx => {
+        if (!newUser[0]) return;
+
         await tx.insert(profiles).values({
-          userId: newUser[0].id,
+          userId: newUser[0]?.id,
           onboardingCompleted: false,
         });
 
         await tx.insert(streaks).values({
-          userId: newUser[0].id,
+          userId: newUser[0]?.id,
           currentStreak: 0,
           longestStreak: 0,
         });

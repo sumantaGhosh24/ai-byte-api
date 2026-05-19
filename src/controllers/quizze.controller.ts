@@ -190,9 +190,11 @@ export const updateQuizController = async (req: Request, res: Response) => {
 
     logger.info(`Successfully updated quiz ${id}`);
 
-    const quizListKeys = await getKeys(`quizzes:${quiz.courseId}*`);
-    if (quizListKeys?.length) {
-      await deleteManyCache(quizListKeys);
+    if (quiz) {
+      const quizListKeys = await getKeys(`quizzes:${quiz.courseId}*`);
+      if (quizListKeys?.length) {
+        await deleteManyCache(quizListKeys);
+      }
     }
 
     await deleteCache(redisKeys.quizze(id));
@@ -232,9 +234,11 @@ export const deleteQuizController = async (req: Request, res: Response) => {
 
     logger.info(`Successfully deleted quiz ${id}`);
 
-    const quizListKeys = await getKeys(`quizzes:${quiz.courseId}*`);
-    if (quizListKeys?.length) {
-      await deleteManyCache(quizListKeys);
+    if (quiz) {
+      const quizListKeys = await getKeys(`quizzes:${quiz.courseId}*`);
+      if (quizListKeys?.length) {
+        await deleteManyCache(quizListKeys);
+      }
     }
 
     await deleteCache(redisKeys.quizze(id));

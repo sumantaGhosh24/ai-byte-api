@@ -38,6 +38,8 @@ const generateCourse = inngest.createFunction(
       return created[0];
     });
 
+    if (!insertedCourse) return { success: false };
+
     for (let i = 0; i < aiCourse.lessons.length; i++) {
       const lesson = aiCourse.lessons[i];
 
@@ -45,7 +47,7 @@ const generateCourse = inngest.createFunction(
         .insert(lessons)
         .values({
           courseId: insertedCourse.id,
-          title: lesson.title,
+          title: lesson?.title ?? "",
           orderIndex: i + 1,
           content: "",
           status: "pending",

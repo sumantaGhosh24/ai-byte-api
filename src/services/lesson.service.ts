@@ -329,6 +329,9 @@ export const deleteLessonService = async (id: string) => {
 
     for (let i = 0; i < courseLessons.length; i++) {
       const l = courseLessons[i];
+
+      if (!l) return;
+
       if (l.orderIndex !== i) {
         await db
           .update(lessons)

@@ -230,8 +230,10 @@ export const createLessonController = async (req: Request, res: Response) => {
 
     logger.info("Successfully created lesson");
 
-    await deleteCache(redisKeys.lessons(lesson.courseId));
-    await deleteCache(redisKeys.publicLessons(lesson.courseId));
+    if (lesson) {
+      await deleteCache(redisKeys.lessons(lesson.courseId));
+      await deleteCache(redisKeys.publicLessons(lesson.courseId));
+    }
 
     res.status(201).json({ success: true, lesson });
   } catch (error: unknown) {
@@ -312,9 +314,11 @@ export const updateLessonController = async (req: Request, res: Response) => {
 
     logger.info(`Successfully updated lesson ${id}`);
 
-    await deleteCache(redisKeys.lessons(lesson.courseId));
-    await deleteCache(redisKeys.publicLessons(lesson.courseId));
-    await deleteCache(redisKeys.lesson(id));
+    if (lesson) {
+      await deleteCache(redisKeys.lessons(lesson.courseId));
+      await deleteCache(redisKeys.publicLessons(lesson.courseId));
+      await deleteCache(redisKeys.lesson(id));
+    }
 
     res.json({ success: true, lesson });
   } catch (error: unknown) {
@@ -351,9 +355,11 @@ export const deleteLessonController = async (req: Request, res: Response) => {
 
     logger.info(`Successfully deleted lesson ${id}`);
 
-    await deleteCache(redisKeys.lessons(lesson.courseId));
-    await deleteCache(redisKeys.publicLessons(lesson.courseId));
-    await deleteCache(redisKeys.lesson(id));
+    if (lesson) {
+      await deleteCache(redisKeys.lessons(lesson.courseId));
+      await deleteCache(redisKeys.publicLessons(lesson.courseId));
+      await deleteCache(redisKeys.lesson(id));
+    }
 
     res.json({ success: true, lesson });
   } catch (error: unknown) {

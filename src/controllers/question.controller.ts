@@ -259,9 +259,11 @@ export const deleteQuestionController = async (req: Request, res: Response) => {
 
     logger.info(`Successfully deleted question ${id}`);
 
-    const keys = await getKeys(`questions:${deleted.quizId}*`);
-    if (keys?.length) {
-      await deleteManyCache(keys);
+    if (deleted) {
+      const keys = await getKeys(`questions:${deleted.quizId}*`);
+      if (keys?.length) {
+        await deleteManyCache(keys);
+      }
     }
 
     await deleteCache(redisKeys.question(id));

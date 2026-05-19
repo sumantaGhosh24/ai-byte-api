@@ -64,7 +64,7 @@ export const checkInStreakService = async (userId: string) => {
     const now = new Date();
 
     if (
-      streak.lastCheckInAt &&
+      streak?.lastCheckInAt &&
       isSameDay(new Date(streak.lastCheckInAt), now)
     ) {
       return {
@@ -75,11 +75,11 @@ export const checkInStreakService = async (userId: string) => {
 
     let nextStreak = 1;
 
-    if (streak.lastCheckInAt && isYesterday(new Date(streak.lastCheckInAt))) {
+    if (streak?.lastCheckInAt && isYesterday(new Date(streak.lastCheckInAt))) {
       nextStreak = streak.currentStreak + 1;
     }
 
-    const longestStreak = Math.max(nextStreak, streak.longestStreak);
+    const longestStreak = Math.max(nextStreak, streak?.longestStreak ?? 0);
 
     let xpBonus = 0;
 
