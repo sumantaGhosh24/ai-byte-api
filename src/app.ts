@@ -25,6 +25,7 @@ import answerSubmissionRoutes from "./routes/answerSubmission.route";
 import notificationRoutes from "./routes/notification.route";
 import streakRoutes from "./routes/streak.route";
 import bookmarkRoutes from "./routes/bookmark.route";
+import achievementRoutes from "./routes/achievement.route";
 import { inngest } from "./inngest/client";
 import { helloWorld } from "./inngest/functions/hello";
 
@@ -91,6 +92,7 @@ app.use("/api", quizzeRoutes);
 app.use("/api", questionRoutes);
 app.use("/api", quizzeAttemptRoutes);
 app.use("/api", answerSubmissionRoutes);
+app.use("/api", achievementRoutes);
 
 app.use((req, res) => {
   Sentry.logger.error("Not Found", {

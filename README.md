@@ -1,6 +1,6 @@
 # AIByte Backend API
 
-Production-grade backend for **AIByte**, an Expo micro-learning platform focused on AI learning, video lessons, quizzes, progress tracking, streaks, notifications, analytics, and scalable retention systems.
+Production-grade backend for **AIByte**, an Expo micro-learning platform focused on AI learning, video lessons, quizzes, progress tracking, streaks, notifications, and scalable retention systems.
 
 Built with:
 
@@ -42,7 +42,6 @@ Built with:
 - Quiz submission
 - Quiz attempts tracking
 - Score history
-- Quiz analytics
 
 ## User Profile
 
@@ -66,7 +65,6 @@ Built with:
 - Device token registration
 - Push notification preferences
 - Notification inbox
-- Notification analytics
 - Deep linking support
 
 ## Admin CMS
@@ -84,4 +82,3 @@ Built with:
 - Structured logging
 - Request tracing
 - Rate limiting
-- Pagination helpers

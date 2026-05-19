@@ -21,7 +21,10 @@ export const users = pgTable("users", {
 
 export const profiles = pgTable("profiles", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").notNull().unique(),
+  userId: uuid("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
   name: text("name"),
   username: text("username"),
   bio: text("bio"),
@@ -55,7 +58,9 @@ export const notificationTokens = pgTable(
   "notification_tokens",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     token: text("token").notNull(),
     platform: text("platform").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
@@ -67,7 +72,9 @@ export const notificationTokens = pgTable(
 
 export const notifications = pgTable("notifications", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").notNull(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   message: text("message").notNull(),
   type: text("type").notNull(),
@@ -82,7 +89,10 @@ export const notifications = pgTable("notifications", {
 
 export const streaks = pgTable("streaks", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").notNull().unique(),
+  userId: uuid("user_id")
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: "cascade" }),
   currentStreak: integer("current_streak").default(0).notNull(),
   longestStreak: integer("longest_streak").default(0).notNull(),
   lastCheckInAt: timestamp("last_check_in_at"),
@@ -101,7 +111,9 @@ export const categories = pgTable("categories", {
 
 export const courses = pgTable("courses", {
   id: uuid("id").defaultRandom().primaryKey(),
-  categoryId: uuid("category_id").notNull(),
+  categoryId: uuid("category_id")
+    .notNull()
+    .references(() => categories.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description").notNull(),
   thumbnailUrl: text("thumbnail_url"),
@@ -117,7 +129,9 @@ export const courses = pgTable("courses", {
 
 export const lessons = pgTable("lessons", {
   id: uuid("id").defaultRandom().primaryKey(),
-  courseId: uuid("course_id").notNull(),
+  courseId: uuid("course_id")
+    .notNull()
+    .references(() => courses.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   content: text("content").notNull(),
   thumbnailUrl: text("thumbnail_url"),
@@ -137,8 +151,12 @@ export const bookmarks = pgTable(
   "bookmarks",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull(),
-    lessonId: uuid("lesson_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lessonId: uuid("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   table => [
@@ -150,8 +168,12 @@ export const progress = pgTable(
   "progress",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull(),
-    lessonId: uuid("lesson_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lessonId: uuid("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
     watchPercentage: integer("watch_percentage").default(0).notNull(),
     completed: boolean("completed").default(false).notNull(),
     lastTimestamp: text("last_timestamp"),
@@ -163,7 +185,9 @@ export const progress = pgTable(
 
 export const quizzes = pgTable("quizzes", {
   id: uuid("id").defaultRandom().primaryKey(),
-  courseId: uuid("course_id").notNull(),
+  courseId: uuid("course_id")
+    .notNull()
+    .references(() => courses.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description").notNull(),
   difficulty: text("difficulty").notNull(),
@@ -173,7 +197,9 @@ export const quizzes = pgTable("quizzes", {
 
 export const questions = pgTable("questions", {
   id: uuid("id").defaultRandom().primaryKey(),
-  quizId: uuid("quiz_id").notNull(),
+  quizId: uuid("quiz_id")
+    .notNull()
+    .references(() => quizzes.id, { onDelete: "cascade" }),
   question: text("question").notNull(),
   optionA: text("optiona").notNull(),
   optionB: text("optionb").notNull(),
@@ -187,18 +213,53 @@ export const questions = pgTable("questions", {
 
 export const quizAttempts = pgTable("quiz_attempts", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").notNull(),
-  quizId: uuid("quiz_id").notNull(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  quizId: uuid("quiz_id")
+    .notNull()
+    .references(() => quizzes.id, { onDelete: "cascade" }),
   score: integer("score").notNull(),
   submittedAt: timestamp("submitted_at").defaultNow().notNull(),
 });
 
 export const answerSubmissions = pgTable("answer_submissions", {
   id: uuid("id").defaultRandom().primaryKey(),
-  quizAttemptId: uuid("quiz_attempt_id").notNull(),
+  quizAttemptId: uuid("quiz_attempt_id")
+    .notNull()
+    .references(() => quizAttempts.id, { onDelete: "cascade" }),
   userAnswer: text("user_answer").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const achievements = pgTable("achievements", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  badgeImage: text("badge_image").notNull(),
+  badgeImagePublicId: text("badge_image_public_id").notNull(),
+  xpReward: integer("xp_reward").notNull(),
+  achievementType: text("achievement_type").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const userAchievements = pgTable(
+  "user_achievements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    achievementId: uuid("achievement_id")
+      .notNull()
+      .references(() => achievements.id, { onDelete: "cascade" }),
+    unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
+  },
+  table => [
+    unique("user_achievement_unique").on(table.userId, table.achievementId),
+  ]
+);
 
 export const usersRelations = relations(users, ({ one, many }) => ({
   profile: one(profiles, {
@@ -213,6 +274,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   notificationTokens: many(notificationTokens),
   notifications: many(notifications),
   bookmarks: many(bookmarks),
+  userAchievements: many(userAchievements),
 }));
 
 export const profilesRelations = relations(profiles, ({ one }) => ({
@@ -351,6 +413,24 @@ export const answerSubmissionsRelations = relations(
     quizAttempt: one(quizAttempts, {
       fields: [answerSubmissions.quizAttemptId],
       references: [quizAttempts.id],
+    }),
+  })
+);
+
+export const achievementsRelations = relations(achievements, ({ many }) => ({
+  userAchievements: many(userAchievements),
+}));
+
+export const userAchievementsRelations = relations(
+  userAchievements,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userAchievements.userId],
+      references: [users.id],
+    }),
+    achievement: one(achievements, {
+      fields: [userAchievements.achievementId],
+      references: [achievements.id],
     }),
   })
 );
