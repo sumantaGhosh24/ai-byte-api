@@ -22,6 +22,7 @@ import quizzeRoutes from "./routes/quizze.route";
 import questionRoutes from "./routes/question.route";
 import quizzeAttemptRoutes from "./routes/quizzeAttempt.route";
 import answerSubmissionRoutes from "./routes/answerSubmission.route";
+import notificationRoutes from "./routes/notification.route";
 import { inngest } from "./inngest/client";
 import { helloWorld } from "./inngest/functions/hello";
 
@@ -85,6 +86,7 @@ app.use("/api", quizzeRoutes);
 app.use("/api", questionRoutes);
 app.use("/api", quizzeAttemptRoutes);
 app.use("/api", answerSubmissionRoutes);
+app.use("/api", notificationRoutes);
 
 app.use((req, res) => {
   Sentry.logger.error("Not Found", {

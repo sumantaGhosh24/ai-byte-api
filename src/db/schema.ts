@@ -51,6 +51,35 @@ export const profiles = pgTable("profiles", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const notificationTokens = pgTable(
+  "notification_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull(),
+    token: text("token").notNull(),
+    platform: text("platform").notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  table => [unique("user_token_unique").on(table.userId, table.token)]
+);
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").notNull(),
+  read: boolean("read").default(false).notNull(),
+  relatedCourseId: uuid("related_course_id"),
+  relatedLessonId: uuid("related_lesson_id"),
+  relatedQuizId: uuid("related_quiz_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  sentAt: timestamp("sent_at"),
+});
+
 export const streaks = pgTable("streaks", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").notNull().unique(),
@@ -167,12 +196,46 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [streaks.userId],
   }),
   quizAttempts: many(quizAttempts),
+  notificationTokens: many(notificationTokens),
+  notifications: many(notifications),
 }));
 
 export const profilesRelations = relations(profiles, ({ one }) => ({
   user: one(users, {
     fields: [profiles.userId],
     references: [users.id],
+  }),
+}));
+
+export const notificationTokensRelations = relations(
+  notificationTokens,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [notificationTokens.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+  relatedCourse: one(courses, {
+    fields: [notifications.relatedCourseId],
+    references: [courses.id],
+    relationName: "notification_related_course",
+  }),
+  relatedLesson: one(lessons, {
+    fields: [notifications.relatedLessonId],
+    references: [lessons.id],
+    relationName: "notification_related_lesson",
+  }),
+  relatedQuiz: one(quizzes, {
+    fields: [notifications.relatedQuizId],
+    references: [quizzes.id],
+    relationName: "notification_related_quiz",
   }),
 }));
 
@@ -194,6 +257,9 @@ export const coursesRelations = relations(courses, ({ one, many }) => ({
   }),
   lessons: many(lessons),
   quizzes: many(quizzes),
+  notifications: many(notifications, {
+    relationName: "notification_related_course",
+  }),
 }));
 
 export const lessonsRelations = relations(lessons, ({ one, many }) => ({
@@ -202,6 +268,9 @@ export const lessonsRelations = relations(lessons, ({ one, many }) => ({
     references: [courses.id],
   }),
   progress: many(progress),
+  notifications: many(notifications, {
+    relationName: "notification_related_lesson",
+  }),
 }));
 
 export const progressRelations = relations(progress, ({ one }) => ({
@@ -222,6 +291,9 @@ export const quizzesRelations = relations(quizzes, ({ one, many }) => ({
   }),
   questions: many(questions),
   attempts: many(quizAttempts),
+  notifications: many(notifications, {
+    relationName: "notification_related_quiz",
+  }),
 }));
 
 export const questionsRelations = relations(questions, ({ one }) => ({
