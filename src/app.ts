@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import fileUpload from "express-fileupload";
 import * as Sentry from "@sentry/node";
 import { clerkMiddleware } from "@clerk/express";
 import { serve } from "inngest/express";
@@ -29,6 +30,7 @@ import streakRoutes from "./routes/streak.route";
 import bookmarkRoutes from "./routes/bookmark.route";
 import achievementRoutes from "./routes/achievement.route";
 import dashboardRoutes from "./routes/dashboard.route";
+import uploadRoutes from "./routes/upload.route";
 
 const app = express();
 
@@ -42,6 +44,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(helmet());
+app.use(fileUpload({ useTempFiles: true }));
 app.use(clerkMiddleware());
 app.use(sentryClerkUserMiddleware);
 
@@ -82,6 +85,7 @@ app.use(
 
 app.use("/api", userRoutes);
 app.use("/api", profileRoutes);
+app.use("/api", uploadRoutes);
 app.use("/api", notificationRoutes);
 app.use("/api", streakRoutes);
 app.use("/api", categoryRoutes);

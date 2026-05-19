@@ -11,4 +11,7 @@ export const env = {
   CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY!,
   CLERK_WEBHOOK_SECRET: process.env.CLERK_WEBHOOK_SECRET!,
   BASE_URL: process.env.BASE_URL!,
+  CLOUD_NAME: process.env.CLOUD_NAME!,
+  CLOUD_API_KEY: process.env.CLOUD_API_KEY!,
+  CLOUD_API_SECRET: process.env.CLOUD_API_SECRET!,
 };
