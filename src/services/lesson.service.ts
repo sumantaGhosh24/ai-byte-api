@@ -1,133 +1,172 @@
-import { and, asc, eq, ilike, sql } from "drizzle-orm";
 import { logger } from "@sentry/node";
+import { generateText } from "ai";
 
-import { db } from "../db";
-import { lessons } from "../db/schema";
-
-interface GetLessonsParams {
-  page: number;
-  limit: number;
-  search?: string;
-  courseId: string;
-  status?: "pending" | "processing" | "completed" | "failed";
-  visibility?: "public" | "private";
-}
+import { geminiModel } from "../config/ai";
+import { prisma } from "../config/db";
+import {
+  CreateLessonParams,
+  FixLessonOrderParams,
+  GenerateAILessonParams,
+  GenerateLessonParams,
+  GetLessonsParams,
+  lessonGenerationSchema,
+  UpdateLesssonParams,
+} from "../validations/lesson.validation";
+import { Prisma } from "../generated/prisma/client";
 
 export const getAllLessonsService = async ({
   page,
   limit,
   search,
-  courseId,
-  status,
+  difficulty,
   visibility,
+  status,
+  courseId,
 }: GetLessonsParams) => {
   try {
-    const offset = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-    const filters = [eq(lessons.courseId, courseId)];
+    const where: Prisma.LessonWhereInput = {
+      courseId,
+      ...(search
+        ? { title: { contains: search, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+      ...(difficulty ? { difficulty } : {}),
+      ...(visibility ? { visibility } : {}),
+      ...(status ? { status } : {}),
+    };
 
-    if (search) {
-      filters.push(ilike(lessons.title, `%${search}%`));
-    }
-    if (status) {
-      filters.push(eq(lessons.status, status));
-    }
-    if (visibility) {
-      filters.push(eq(lessons.visibility, visibility));
-    }
+    const [items, total] = await Promise.all([
+      prisma.lesson.findMany({
+        where,
+        include: {
+          _count: {
+            select: {
+              progress: true,
+            },
+          },
+        },
+        orderBy: { orderIndex: "asc" },
+        skip,
+        take: limit,
+      }),
 
-    const whereClause = and(...filters);
+      prisma.lesson.count({ where }),
+    ]);
 
-    const data = await db.query.lessons.findMany({
-      where: whereClause,
-      limit,
-      offset,
-      orderBy: (lessonsTable, { asc }) => [asc(lessonsTable.orderIndex)],
+    const formattedItems = items.map(lesson => {
+      return {
+        ...lesson,
+        progressCount: lesson._count.progress,
+      };
     });
 
-    const total = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(lessons)
-      .where(whereClause);
-
     return {
-      items: data,
+      items: formattedItems,
       paginations: {
         page,
         limit,
-        total: Number(total[0]?.count || 0),
-        hasMore: offset + data.length < Number(total[0]?.count || 0),
+        total,
+        hasMore: skip + formattedItems.length < total,
+        nextPage: skip + formattedItems.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
       },
     };
   } catch (error) {
-    logger.error("Error fetching paginated lessons", { error });
+    logger.error("Error fetching paginated lessons with relations", { error });
 
     throw error;
   }
 };
 
-export const getAllPublicLessonsService = async ({
+export const getPublicLessonsService = async ({
   page,
   limit,
   search,
+  difficulty,
   courseId,
-  status,
-}: Omit<GetLessonsParams, "visibility">) => {
+}: GetLessonsParams) => {
   try {
-    const offset = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-    const filters = [
-      eq(lessons.courseId, courseId),
-      eq(lessons.visibility, "public"),
-    ];
+    const where: Prisma.LessonWhereInput = {
+      visibility: "public",
+      status: "completed",
+      courseId,
+      ...(search
+        ? { title: { contains: search, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+      ...(difficulty ? { difficulty } : {}),
+    };
 
-    if (search) {
-      filters.push(ilike(lessons.title, `%${search}%`));
-    }
-    if (status) {
-      filters.push(eq(lessons.status, status));
-    }
+    const [items, total] = await Promise.all([
+      prisma.lesson.findMany({
+        where,
+        include: {
+          _count: {
+            select: {
+              progress: true,
+            },
+          },
+        },
+        orderBy: { orderIndex: "asc" },
+        skip,
+        take: limit,
+      }),
+      prisma.lesson.count({ where }),
+    ]);
 
-    const whereClause = and(...filters);
-
-    const data = await db.query.lessons.findMany({
-      where: whereClause,
-      limit,
-      offset,
-      orderBy: (lessonsTable, { asc }) => [asc(lessonsTable.orderIndex)],
+    const formattedItems = items.map(progress => {
+      return {
+        ...progress,
+        progressCount: progress._count.progress,
+      };
     });
 
-    const total = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(lessons)
-      .where(whereClause);
-
     return {
-      items: data,
+      items: formattedItems,
       paginations: {
         page,
         limit,
-        total: Number(total[0]?.count || 0),
-        hasMore: offset + data.length < Number(total[0]?.count || 0),
+        total,
+        hasMore: skip + formattedItems.length < total,
+        nextPage: skip + formattedItems.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
       },
     };
   } catch (error) {
-    logger.error("Error fetching public paginated lessons", { error });
+    logger.error("Error fetching paginated public lessons", { error });
 
     throw error;
   }
 };
 
-export const getLessonService = async (id: string) => {
+export const getLessonService = async (lessonId: string) => {
   try {
-    const lesson = await db.query.lessons.findFirst({
-      where: eq(lessons.id, id),
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        course: {
+          select: {
+            id: true,
+            title: true,
+            visibility: true,
+            status: true,
+          },
+        },
+        _count: {
+          select: {
+            progress: true,
+            notifications: true,
+          },
+        },
+      },
     });
 
     if (!lesson) {
       logger.error("Lesson not found");
 
-      throw new Error("Lesson not found");
+      throw new Error("NOT_FOUND");
     }
 
     return lesson;
@@ -138,16 +177,35 @@ export const getLessonService = async (id: string) => {
   }
 };
 
-export const getPublicLessonService = async (id: string) => {
+export const getPublicLessonService = async (lessonId: string) => {
   try {
-    const lesson = await db.query.lessons.findFirst({
-      where: and(eq(lessons.id, id), eq(lessons.visibility, "public")),
+    const lesson = await prisma.lesson.findFirst({
+      where: {
+        id: lessonId,
+        visibility: "public",
+        status: "completed",
+        course: {
+          visibility: "public",
+          status: "completed",
+        },
+      },
+      include: {
+        course: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+        _count: {
+          select: { progress: true },
+        },
+      },
     });
 
     if (!lesson) {
       logger.error("Lesson not found");
 
-      throw new Error("Lesson not found");
+      throw new Error("NOT_FOUND");
     }
 
     return lesson;
@@ -158,21 +216,6 @@ export const getPublicLessonService = async (id: string) => {
   }
 };
 
-interface CreateLessonParams {
-  courseId: string;
-  title: string;
-  content: string;
-  thumbnailUrl?: string;
-  thumbnailPublicId?: string;
-  videoUrl?: string;
-  videoPublicId?: string;
-  duration: string;
-  visibility: "public" | "private";
-  status: "pending" | "processing" | "completed" | "failed";
-  xpReward: number;
-  orderIndex: number;
-}
-
 export const createLessonService = async ({
   courseId,
   title,
@@ -182,15 +225,23 @@ export const createLessonService = async ({
   videoUrl,
   videoPublicId,
   duration,
+  difficulty,
   visibility,
-  status,
-  xpReward,
-  orderIndex,
 }: CreateLessonParams) => {
   try {
-    const [row] = await db
-      .insert(lessons)
-      .values({
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      include: { _count: { select: { lessons: true } } },
+    });
+
+    if (!course) {
+      logger.error("Course not found");
+
+      throw new Error("COURSE_NOT_FOUND");
+    }
+
+    const lesson = await prisma.lesson.create({
+      data: {
         courseId,
         title: title.toLowerCase(),
         content,
@@ -199,13 +250,40 @@ export const createLessonService = async ({
         videoUrl,
         videoPublicId,
         duration,
+        difficulty,
         visibility,
-        status,
-        xpReward,
-        orderIndex,
-      })
-      .returning();
-    return row;
+        orderIndex: course._count.lessons + 1,
+      },
+    });
+
+    if (visibility === "public") {
+      const course = await prisma.course.findUnique({
+        where: { id: lesson.courseId },
+        select: { id: true, title: true },
+      });
+
+      const enrolledUsers = await prisma.enroll.findMany({
+        where: { courseId: lesson.courseId },
+        select: { userId: true },
+      });
+
+      if (enrolledUsers.length > 0) {
+        await prisma.notification.createMany({
+          data: enrolledUsers.map(enroll => ({
+            userId: enroll.userId,
+            title: "A new lesson has been published!",
+            message: `A new lesson has been published in the course "${course?.title}". Check it out!`,
+            type: "lesson",
+            relatedLessonId: lesson?.id,
+            lessonId: lesson?.id,
+            read: false,
+            sentAt: new Date(),
+          })),
+        });
+      }
+    }
+
+    return lesson;
   } catch (error) {
     logger.error("Error creating lesson", { error });
 
@@ -213,89 +291,75 @@ export const createLessonService = async ({
   }
 };
 
-interface UpdateLessonParams {
-  id: string;
-  courseId?: string;
-  title?: string;
-  content?: string;
-  thumbnailUrl?: string;
-  thumbnailPublicId?: string;
-  videoUrl?: string;
-  videoPublicId?: string;
-  duration?: string;
-  visibility?: "public" | "private";
-  status?: "pending" | "processing" | "completed" | "failed";
-  xpReward?: number;
-  orderIndex?: number;
-}
-
 export const updateLessonService = async ({
-  id,
+  lessonId,
   courseId,
-  title,
   content,
-  thumbnailUrl,
-  thumbnailPublicId,
-  videoUrl,
-  videoPublicId,
   duration,
-  visibility,
+  title,
+  difficulty,
   status,
-  xpReward,
-  orderIndex,
-}: UpdateLessonParams) => {
+  thumbnailPublicId,
+  thumbnailUrl,
+  videoPublicId,
+  videoUrl,
+  visibility,
+}: UpdateLesssonParams) => {
   try {
-    const existingLesson = await db.query.lessons.findFirst({
-      where: eq(lessons.id, id),
+    const existingLesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
     });
 
     if (!existingLesson) {
       logger.error("Lesson not found");
 
-      throw new Error("Lesson not found");
+      throw new Error("NOT_FOUND");
     }
 
-    if (orderIndex !== undefined) {
-      const targetCourseId =
-        courseId !== undefined ? courseId : existingLesson.courseId;
-      const conflictingLesson = await db.query.lessons.findFirst({
-        where: and(
-          eq(lessons.courseId, targetCourseId),
-          eq(lessons.orderIndex, orderIndex),
-          sql`${lessons.id} != ${id}`
-        ),
-      });
-
-      if (conflictingLesson) {
-        logger.error("Conflicting orderIndex for lesson update", {
-          courseId: targetCourseId,
-          orderIndex,
-        });
-        throw new Error(
-          "Another lesson in this course already has the requested orderIndex."
-        );
-      }
-    }
-
-    const [lesson] = await db
-      .update(lessons)
-      .set({
+    const lesson = await prisma.lesson.update({
+      where: { id: lessonId },
+      data: {
+        title: title.toLowerCase(),
         ...(courseId !== undefined ? { courseId } : {}),
-        ...(title !== undefined ? { title } : {}),
         ...(content !== undefined ? { content } : {}),
         ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}),
         ...(thumbnailPublicId !== undefined ? { thumbnailPublicId } : {}),
         ...(videoUrl !== undefined ? { videoUrl } : {}),
         ...(videoPublicId !== undefined ? { videoPublicId } : {}),
         ...(duration !== undefined ? { duration } : {}),
+        ...(difficulty !== undefined ? { difficulty } : {}),
         ...(visibility !== undefined ? { visibility } : {}),
         ...(status !== undefined ? { status } : {}),
-        ...(xpReward !== undefined ? { xpReward } : {}),
-        ...(orderIndex !== undefined ? { orderIndex } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(lessons.id, id))
-      .returning();
+      },
+    });
+
+    if (existingLesson.visibility === "private" && visibility === "public") {
+      const course = await prisma.course.findUnique({
+        where: { id: lesson.courseId },
+        select: { id: true, title: true },
+      });
+
+      const enrolledUsers = await prisma.enroll.findMany({
+        where: { courseId: lesson.courseId },
+        select: { userId: true },
+      });
+
+      if (enrolledUsers.length > 0) {
+        await prisma.notification.createMany({
+          data: enrolledUsers.map(enroll => ({
+            userId: enroll.userId,
+            title: "A new lesson has been published!",
+            message: `A new lesson has been published in the course "${course?.title}". Check it out!`,
+            type: "lesson",
+            relatedLessonId: lesson?.id,
+            lessonId: lesson?.id,
+            read: false,
+            sentAt: new Date(),
+          })),
+        });
+      }
+    }
+
     return lesson;
   } catch (error) {
     logger.error("Error updating lesson", { error });
@@ -304,45 +368,168 @@ export const updateLessonService = async ({
   }
 };
 
-export const deleteLessonService = async (id: string) => {
+export const deleteLessonService = async (lessonId: string) => {
   try {
-    const existingLesson = await db.query.lessons.findFirst({
-      where: eq(lessons.id, id),
+    const existingLesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
     });
 
     if (!existingLesson) {
       logger.error("Lesson not found");
-      throw new Error("Lesson not found");
+
+      throw new Error("NOT_FOUND");
     }
 
-    const courseId = existingLesson.courseId;
-
-    const [deletedLesson] = await db
-      .delete(lessons)
-      .where(eq(lessons.id, id))
-      .returning();
-
-    const courseLessons = await db.query.lessons.findMany({
-      where: eq(lessons.courseId, courseId),
-      orderBy: [asc(lessons.orderIndex)],
+    const lesson = await prisma.lesson.delete({
+      where: { id: lessonId },
     });
 
-    for (let i = 0; i < courseLessons.length; i++) {
-      const l = courseLessons[i];
-
-      if (!l) return;
-
-      if (l.orderIndex !== i) {
-        await db
-          .update(lessons)
-          .set({ orderIndex: i, updatedAt: new Date() })
-          .where(eq(lessons.id, l.id));
-      }
-    }
-
-    return deletedLesson;
+    return lesson;
   } catch (error) {
     logger.error("Error deleting lesson", { error });
+
+    throw error;
+  }
+};
+
+export const fixLessonOrderService = async ({
+  courseId,
+  lessons,
+}: FixLessonOrderParams) => {
+  try {
+    const updatedLessons = await prisma.$transaction(
+      lessons.map(lesson =>
+        prisma.lesson.update({
+          where: {
+            id: lesson.id,
+            courseId,
+          },
+          data: {
+            orderIndex: lesson.orderIndex,
+          },
+        })
+      )
+    );
+
+    return updatedLessons;
+  } catch (error) {
+    logger.error("Error fixing lesson order", { error });
+
+    throw error;
+  }
+};
+
+export const generateLessonWithAIService = async ({
+  topic,
+  difficulty,
+  title,
+  description,
+}: GenerateLessonParams) => {
+  try {
+    const prompt = `
+      Generate a production-grade lesson.
+  
+      Topic: ${topic}
+  
+      Difficulty: ${difficulty}
+  
+      Course Title: ${title}
+  
+      Course Description: ${description}
+  
+      STRICT JSON ONLY.
+  
+      {
+        "title": "string",
+        "content": "string",
+        "summary": "string",
+        "duration": "string"
+      }
+  
+      Rules:
+      - STRICT JSON ONLY
+      - No markdown
+      - No code blocks
+      - No explanations
+      - Generate educational content
+      - Make lesson content detailed
+      - JSON must be parsable
+    `;
+
+    const result = await generateText({
+      model: geminiModel,
+      prompt,
+      temperature: 0.7,
+    });
+
+    const cleaned = result.text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    let parsed;
+
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (error) {
+      logger.error("Invalid AI JSON", {
+        error,
+      });
+
+      throw new Error("INVALID_AI_JSON", { cause: error });
+    }
+
+    const validated = lessonGenerationSchema.safeParse(parsed);
+
+    if (!validated.success) {
+      logger.error("AI schema validation failed", {
+        errors: validated.error,
+      });
+
+      throw new Error("INVALID_AI_SCHEMA");
+    }
+
+    return validated.data;
+  } catch (error) {
+    logger.error("Generate lesson AI failed", { error });
+
+    throw error;
+  }
+};
+
+export const generateLessonService = async ({
+  topic,
+  difficulty,
+  courseId,
+  thumbnailUrl,
+  thumbnailPublicId,
+  videoUrl,
+  videoPublicId,
+}: Partial<GenerateAILessonParams>) => {
+  try {
+    const lesson = await prisma.lesson.create({
+      data: {
+        title: `Generating lesson: ${topic}`,
+        content: "AI is generating this lesson.",
+        courseId: courseId as string,
+        difficulty,
+        duration: "10 mins",
+        visibility: "private",
+        status: "processing",
+        aiGenerated: true,
+        orderIndex: 1,
+        thumbnailUrl,
+        thumbnailPublicId,
+        videoUrl,
+        videoPublicId,
+      },
+    });
+
+    return lesson;
+  } catch (error) {
+    logger.error("Generate lesson service failed", {
+      error,
+    });
 
     throw error;
   }

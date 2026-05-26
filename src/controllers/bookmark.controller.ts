@@ -1,31 +1,41 @@
-import { Request, Response } from "express";
-import { getAuth } from "@clerk/express";
+import { Request, Response, NextFunction } from "express";
 import { logger } from "@sentry/node";
 
 import {
-  createBookmark,
-  deleteBookmark,
-  getBookmarks,
+  createBookmarkSchema,
+  deleteBookmarkSchema,
+  getBookmarksQuerySchema,
+} from "../validations/bookmark.validation";
+import {
+  createBookmarkService,
+  deleteBookmarkService,
+  getAllBookmarksService,
+  getBookmarkService,
 } from "../services/bookmark.service";
 import { formatValidationError } from "../utils/format";
-import { userIdSchema } from "../validations/user.validation";
-import { bookmarkSchema } from "../validations/bookmark.validation";
+import {
+  deleteCache,
+  deleteManyCache,
+  getKeys,
+  setCache,
+} from "../utils/cache";
+import { redisKeys } from "../utils/redisKeys";
 
-export const createBookmarkController = async (req: Request, res: Response) => {
+export const getAllBookmarksController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const { userId: rawUserId } = getAuth(req);
+    logger.info("Started fetching all bookmarks");
 
-    logger.info(
-      `Started creating bookmark for user ${rawUserId} and lesson ${req.body.lessonId}`
-    );
-
-    const validationResult = bookmarkSchema.safeParse({
-      userId: rawUserId,
-      lessonId: req.body.lessonId,
+    const validationResult = getBookmarksQuerySchema.safeParse({
+      ...req.query,
+      courseId: req.params.id,
     });
 
     if (!validationResult.success) {
-      logger.error("Validation failed to create bookmark", {
+      logger.error("Validation failed to get bookmark", {
         error: formatValidationError(validationResult.error),
       });
 
@@ -36,39 +46,48 @@ export const createBookmarkController = async (req: Request, res: Response) => {
       });
     }
 
-    const { userId, lessonId } = validationResult.data;
+    const { page, limit, userId, courseId } = validationResult.data;
 
-    const bookmark = await createBookmark({ userId, lessonId });
+    const result = await getAllBookmarksService({
+      page,
+      limit,
+      userId,
+      courseId,
+    });
 
-    logger.info(
-      `Successfully created bookmark for user ${userId} and lesson ${lessonId}`
+    logger.info("Successfully get bookmarks");
+
+    await setCache(
+      redisKeys
+        .bookmarks(JSON.stringify(courseId), JSON.stringify(req.query))
+        .replace(/"/g, ""),
+      {
+        success: true,
+        result,
+      }
     );
 
-    return res.json({ success: true, bookmark });
+    res.json({ success: true, result });
   } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+    next(error);
   }
 };
 
-export const deleteBookmarkController = async (req: Request, res: Response) => {
+export const getBookmarkController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const { userId: rawUserId } = getAuth(req);
+    logger.info("Started fetching bookmark");
 
-    logger.info(
-      `Started deleting bookmark for user ${rawUserId} and lesson ${req.body.lessonId}`
-    );
-
-    const validationResult = bookmarkSchema.safeParse({
-      userId: rawUserId,
-      lessonId: req.body.lessonId,
+    const validationResult = deleteBookmarkSchema.safeParse({
+      bookmarkId: req.params.id,
+      userId: req.user.id,
     });
 
     if (!validationResult.success) {
-      logger.error("Validation failed to delete bookmark", {
+      logger.error("Validation failed to get bookmark", {
         error: formatValidationError(validationResult.error),
       });
 
@@ -79,34 +98,48 @@ export const deleteBookmarkController = async (req: Request, res: Response) => {
       });
     }
 
-    const { userId, lessonId } = validationResult.data;
+    const { bookmarkId, userId } = validationResult.data;
 
-    const deleted = await deleteBookmark({ userId, lessonId });
-
-    logger.info(
-      `Successfully deleted bookmark for user ${userId} and lesson ${lessonId}`
-    );
-
-    return res.json({ success: true, deleted });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    const bookmark = await getBookmarkService({
+      bookmarkId,
+      userId,
     });
-    return;
+
+    logger.info("Successfully get bookmark");
+
+    await setCache(redisKeys.bookmark(bookmarkId), { success: true, bookmark });
+
+    res.status(201).json({ success: true, bookmark });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Bookmark not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };
 
-export const getBookmarksController = async (req: Request, res: Response) => {
+export const createBookmarkController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const { userId: rawUserId } = getAuth(req);
+    logger.info("Started creating bookmark");
 
-    logger.info(`Started fetching bookmarks for user ${rawUserId}`);
-
-    const validationResult = userIdSchema.safeParse({ userId: rawUserId });
+    const validationResult = createBookmarkSchema.safeParse({
+      userId: req.user.id,
+      courseId: req.params.id,
+    });
 
     if (!validationResult.success) {
-      logger.error("Validation failed to get bookmarks", {
+      logger.error("Validation failed while creating bookmark", {
         error: formatValidationError(validationResult.error),
       });
 
@@ -117,18 +150,119 @@ export const getBookmarksController = async (req: Request, res: Response) => {
       });
     }
 
-    const { userId } = validationResult.data;
+    const { userId, courseId } = validationResult.data;
 
-    const bookmarks = await getBookmarks(userId);
-
-    logger.info(`Successfully fetched bookmarks for user ${userId}`);
-
-    return res.json({ success: true, bookmarks });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    const bookmark = await createBookmarkService({
+      userId,
+      courseId,
     });
-    return;
+
+    logger.info("Successfully created bookmark");
+
+    const keys = await getKeys(`courses:bookmark:${req.user.id}`);
+    if (keys?.length) {
+      await deleteManyCache(keys);
+    }
+
+    const keys2 = await getKeys(`bookmarks:${courseId}:*`);
+    if (keys2?.length) {
+      await deleteManyCache(keys2);
+    }
+
+    await deleteCache(redisKeys.bookmark(bookmark.id));
+    await deleteCache(redisKeys.profile(req.user.id));
+    await deleteCache(redisKeys.publicProfile(req.user.id));
+
+    res.status(201).json({
+      success: true,
+      bookmark,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Course not found",
+      });
+      return;
+    }
+
+    if (message === "BOOKMARK_ALREADY_EXISTS") {
+      res.status(500).json({
+        success: false,
+        message: "You are already bookmarked this courase",
+      });
+      return;
+    }
+
+    next(error);
+  }
+};
+
+export const deleteBookmarkController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    logger.info("Started deleting bookmark");
+
+    const validationResult = deleteBookmarkSchema.safeParse({
+      userId: req.user.id,
+      bookmarkId: req.params.id,
+    });
+
+    if (!validationResult.success) {
+      logger.error("Validation failed while deleting bookmark", {
+        error: formatValidationError(validationResult.error),
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        message: formatValidationError(validationResult.error),
+      });
+    }
+
+    const { userId, bookmarkId } = validationResult.data;
+
+    const bookmark = await deleteBookmarkService({
+      userId,
+      bookmarkId,
+    });
+
+    logger.info("Successfully deleted bookmark");
+
+    const keys = await getKeys(`courses:bookmark:${req.user.id}`);
+    if (keys?.length) {
+      await deleteManyCache(keys);
+    }
+
+    const keys2 = await getKeys(`bookmarks:${bookmark.courseId}:*`);
+    if (keys2?.length) {
+      await deleteManyCache(keys2);
+    }
+
+    await deleteCache(redisKeys.bookmark(bookmarkId));
+    await deleteCache(redisKeys.profile(req.user.id));
+    await deleteCache(redisKeys.publicProfile(req.user.id));
+
+    res.status(201).json({
+      success: true,
+      bookmark,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Bookmark not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };

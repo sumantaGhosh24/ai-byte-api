@@ -8,7 +8,7 @@ export const cacheMiddleware =
   async (req: Request, res: Response, next: NextFunction) => {
     const key = keyBuilder(req);
 
-    const cachedData = await getCache(key);
+    const cachedData = await getCache(key.replace(/"/g, ""));
 
     if (cachedData) {
       return res.status(200).json({

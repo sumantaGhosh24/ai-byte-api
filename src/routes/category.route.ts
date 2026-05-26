@@ -1,8 +1,8 @@
 import { Router } from "express";
 
 import {
+  getPublicCategoriesController,
   getAllCategoriesController,
-  getPaginatedCategoriesController,
   getCategoryController,
   createCategoryController,
   updateCategoryController,
@@ -18,27 +18,25 @@ import { requireOnboarding } from "../middlewares/onboarding.middleware";
 const router = Router();
 
 router.get(
-  "/categories/all",
+  "/categories",
   requireAuth,
-  requireOnboarding,
   generalRateLimit,
+  requireOnboarding,
   cacheMiddleware(() => redisKeys.categories),
-  getAllCategoriesController
+  getPublicCategoriesController
 );
 
 router.get(
-  "/categories",
+  "/admin/categories",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
-  cacheMiddleware(req => redisKeys.pCategories(JSON.stringify(req.query))),
-  getPaginatedCategoriesController
+  cacheMiddleware(req => redisKeys.adminCategories(JSON.stringify(req.query))),
+  getAllCategoriesController
 );
 
 router.get(
   "/categories/:id",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   cacheMiddleware(req => redisKeys.category(JSON.stringify(req.params.id))),
   getCategoryController
@@ -47,7 +45,6 @@ router.get(
 router.post(
   "/categories",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   createCategoryController
 );
@@ -55,7 +52,6 @@ router.post(
 router.put(
   "/categories/:id",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   updateCategoryController
 );
@@ -63,7 +59,6 @@ router.put(
 router.delete(
   "/categories/:id",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   deleteCategoryController
 );

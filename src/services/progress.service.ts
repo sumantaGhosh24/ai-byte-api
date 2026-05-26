@@ -1,108 +1,181 @@
-import { and, eq, sql } from "drizzle-orm";
 import { logger } from "@sentry/node";
 
-import { db } from "../db";
-import { progress, lessons, courses, users, streaks } from "../db/schema";
+import {
+  GetProgressesParams,
+  GetProgressParams,
+  UpdateProgressParams,
+} from "../validations/progress.validation";
+import { prisma } from "../config/db";
+import { Prisma } from "../generated/prisma/client";
 
-interface UpdateProgressParams {
-  userId: string;
-  lessonId: string;
-  watchPercentage: number;
-  lastTimestamp: number;
-  completed: boolean;
-}
+export const getAllProgressesService = async ({
+  page,
+  limit,
+  userId,
+  lessonId,
+  completed,
+}: GetProgressesParams) => {
+  try {
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ProgressWhereInput = {
+      lessonId,
+      ...(userId ? { userId } : {}),
+      ...(completed !== undefined ? { completed } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.progress.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { startedAt: "desc" },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              profile: {
+                select: {
+                  name: true,
+                  username: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+
+      prisma.progress.count({ where }),
+    ]);
+
+    return {
+      items,
+      paginations: {
+        page,
+        limit,
+        total,
+        hasMore: skip + items.length < total,
+        nextPage: skip + items.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
+      },
+    };
+  } catch (error) {
+    logger.error("Error getting all progresses", { error });
+
+    throw error;
+  }
+};
+
+export const getProgressService = async ({
+  lessonId,
+  userId,
+}: GetProgressParams) => {
+  try {
+    const progress = await prisma.progress.findUnique({
+      where: { id: lessonId, userId },
+    });
+
+    if (!progress) {
+      logger.error("Progress not found");
+
+      throw new Error("NOT_FOUND");
+    }
+
+    return progress;
+  } catch (error) {
+    logger.error("Error getting progress", { error });
+
+    throw error;
+  }
+};
 
 export const updateProgressService = async ({
   userId,
   lessonId,
-  watchPercentage,
-  lastTimestamp,
   completed,
+  startedAt,
+  finishedAt,
 }: UpdateProgressParams) => {
   try {
-    const existing = await db.query.progress.findFirst({
-      where: and(eq(progress.userId, userId), eq(progress.lessonId, lessonId)),
-    });
-
-    const lesson = await db.query.lessons.findFirst({
-      where: eq(lessons.id, lessonId),
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: {
+        id: true,
+        courseId: true,
+      },
     });
 
     if (!lesson) {
       logger.error("Lesson not found");
 
-      throw new Error("Lesson not found");
+      throw new Error("LESSON_NOT_FOUND");
     }
 
-    const course = await db.query.courses.findFirst({
-      where: eq(courses.id, lesson.courseId),
-    });
-
-    if (!course) {
-      logger.error("Course not found");
-
-      throw new Error("Course not found");
-    }
-
-    let xpAwarded = 0;
-
-    await db.transaction(async tx => {
-      if (existing) {
-        await tx
-          .update(progress)
-          .set({
-            watchPercentage,
-            lastTimestamp: `${lastTimestamp}`,
-            completed,
-            updatedAt: new Date(),
-          })
-          .where(eq(progress.id, existing.id));
-      } else {
-        await tx.insert(progress).values({
+    const progress = await prisma.progress.upsert({
+      where: {
+        userId_lessonId: {
           userId,
           lessonId,
-          watchPercentage,
-          lastTimestamp: `${lastTimestamp}`,
-          completed,
-        });
-      }
-
-      const firstCompletion = completed && (!existing || !existing.completed);
-
-      if (firstCompletion) {
-        xpAwarded = course.xpReward;
-
-        await tx
-          .update(users)
-          .set({
-            xp: sql`${users.xp} + ${course.xpReward}`,
-          })
-          .where(eq(users.id, userId));
-
-        const currentStreak = await tx.query.streaks.findFirst({
-          where: eq(streaks.userId, userId),
-        });
-
-        if (currentStreak) {
-          const nextStreak = currentStreak.currentStreak + 1;
-          await tx
-            .update(streaks)
-            .set({
-              currentStreak: nextStreak,
-              longestStreak: Math.max(nextStreak, currentStreak.longestStreak),
-              updatedAt: new Date(),
-            })
-            .where(eq(streaks.userId, userId));
-        }
-      }
+        },
+      },
+      update: {
+        completed,
+        startedAt: startedAt ? new Date(startedAt) : undefined,
+        finishedAt: completed
+          ? finishedAt
+            ? new Date(finishedAt)
+            : new Date()
+          : null,
+      },
+      create: {
+        userId,
+        lessonId,
+        completed: completed ?? false,
+        startedAt: startedAt ? new Date(startedAt) : new Date(),
+        finishedAt: completed
+          ? finishedAt
+            ? new Date(finishedAt)
+            : new Date()
+          : null,
+      },
     });
 
-    return {
-      lessonId,
-      completed,
-      xpAwarded,
-      shouldUnlockNextLesson: completed,
-    };
+    const completedLessons = await prisma.progress.count({
+      where: {
+        userId,
+        completed: true,
+        lesson: { courseId: lesson.courseId },
+      },
+    });
+
+    const totalLessons = await prisma.lesson.count({
+      where: { courseId: lesson.courseId },
+    });
+
+    await prisma.enroll.upsert({
+      where: {
+        userId_courseId: {
+          userId,
+          courseId: lesson.courseId,
+        },
+      },
+      update: {
+        finishedLessons: completedLessons,
+        completed: completedLessons >= totalLessons,
+        finishedAt: completedLessons >= totalLessons ? new Date() : null,
+      },
+      create: {
+        userId,
+        courseId: lesson.courseId,
+        finishedLessons: completedLessons,
+        completed: completedLessons >= totalLessons,
+        finishedAt: completedLessons >= totalLessons ? new Date() : null,
+      },
+    });
+
+    return progress;
   } catch (error) {
     logger.error("Error update lesson progress", { error });
 

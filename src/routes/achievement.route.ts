@@ -13,29 +13,41 @@ import { requireAuth } from "../middlewares/auth.middleware";
 import { requireAdmin } from "../middlewares/admin.middleware";
 import { requireOnboarding } from "../middlewares/onboarding.middleware";
 import { generalRateLimit } from "../middlewares/rateLimit.middleware";
+import { cacheMiddleware } from "../middlewares/cache.middleware";
+import { redisKeys } from "../utils/redisKeys";
 
 const router = Router();
 
 router.get(
   "/achievements",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
+  cacheMiddleware(req => redisKeys.achievements(JSON.stringify(req.query))),
   getAllAchievementsController
 );
 
 router.get(
   "/achievements/:id",
   requireAdmin,
+  generalRateLimit,
+  cacheMiddleware(req => redisKeys.achievement(JSON.stringify(req.params.id))),
+  getAchievementController
+);
+
+router.get(
+  "/users/:userId/achievements",
+  requireAuth,
   requireOnboarding,
   generalRateLimit,
-  getAchievementController
+  cacheMiddleware(req =>
+    redisKeys.publicLesson(JSON.stringify(req.params.userId))
+  ),
+  getUserAchievementsController
 );
 
 router.post(
   "/achievements",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   createAchievementController
 );
@@ -43,7 +55,6 @@ router.post(
 router.put(
   "/achievements/:id",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   updateAchievementController
 );
@@ -51,22 +62,13 @@ router.put(
 router.delete(
   "/achievements/:id",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   deleteAchievementController
 );
 
-router.get(
-  "/users/:userId/achievements",
-  requireAdmin,
-  requireOnboarding,
-  generalRateLimit,
-  getUserAchievementsController
-);
-
 router.post(
   "/users/achievement",
-  requireAuth,
+  requireAdmin,
   requireOnboarding,
   generalRateLimit,
   createUserAchievementController
@@ -75,7 +77,6 @@ router.post(
 router.delete(
   "/users/achievement",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   deleteUserAchievementController
 );

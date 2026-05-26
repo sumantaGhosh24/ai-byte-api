@@ -1,24 +1,142 @@
-import { and, eq } from "drizzle-orm";
 import { logger } from "@sentry/node";
 
-import { db } from "../db";
-import { bookmarks } from "../db/schema";
+import { prisma } from "../config/db";
+import {
+  CreateBookmarkParams,
+  DeleteBookmarkParams,
+  GetBookmarksParams,
+} from "../validations/bookmark.validation";
+import { Prisma } from "../generated/prisma/client";
 
-interface BookmarkParams {
-  userId: string;
-  lessonId: string;
-}
-
-export const createBookmark = async ({ userId, lessonId }: BookmarkParams) => {
+export const getAllBookmarksService = async ({
+  page,
+  limit,
+  userId,
+  courseId,
+}: GetBookmarksParams) => {
   try {
-    const [bookmark] = await db
-      .insert(bookmarks)
-      .values({
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.BookmarkWhereInput = {
+      courseId,
+      ...(userId ? { userId } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.bookmark.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              profile: {
+                select: {
+                  name: true,
+                  username: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+          course: {
+            include: { category: true },
+          },
+        },
+      }),
+
+      prisma.bookmark.count({ where }),
+    ]);
+
+    return {
+      items,
+      paginations: {
+        page,
+        limit,
+        total,
+        hasMore: skip + items.length < total,
+        nextPage: skip + items.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
+      },
+    };
+  } catch (error) {
+    logger.error("Error getting all bookmarks", { error });
+
+    throw error;
+  }
+};
+
+export const getBookmarkService = async ({
+  bookmarkId,
+  userId,
+}: DeleteBookmarkParams) => {
+  try {
+    const bookmark = await prisma.bookmark.findUnique({
+      where: { id: bookmarkId, userId },
+    });
+
+    if (!bookmark) {
+      logger.error("Bookmark not found");
+
+      throw new Error("NOT_FOUND");
+    }
+
+    return bookmark;
+  } catch (error) {
+    logger.error("Error getting bookmark", { error });
+
+    throw error;
+  }
+};
+
+export const createBookmarkService = async ({
+  userId,
+  courseId,
+}: CreateBookmarkParams) => {
+  try {
+    const existingCourse = await prisma.course.findFirst({
+      where: {
+        id: courseId,
+        visibility: "public",
+        status: "completed",
+      },
+    });
+
+    if (!existingCourse) {
+      logger.error("Course not found");
+
+      throw new Error("NOT_FOUND");
+    }
+
+    const existingBookmark = await prisma.bookmark.findUnique({
+      where: {
+        userId_courseId: {
+          userId,
+          courseId,
+        },
+      },
+    });
+
+    if (existingBookmark) {
+      logger.error("Bookmark already exists");
+
+      throw new Error("BOOKMARK_ALREADY_EXISTS");
+    }
+
+    const bookmark = await prisma.bookmark.create({
+      data: {
         userId,
-        lessonId,
-      })
-      .onConflictDoNothing()
-      .returning();
+        courseId,
+      },
+      include: {
+        course: {
+          include: { category: true },
+        },
+      },
+    });
 
     return bookmark;
   } catch (error) {
@@ -28,36 +146,31 @@ export const createBookmark = async ({ userId, lessonId }: BookmarkParams) => {
   }
 };
 
-export const deleteBookmark = async ({ userId, lessonId }: BookmarkParams) => {
+export const deleteBookmarkService = async ({
+  bookmarkId,
+  userId,
+}: DeleteBookmarkParams) => {
   try {
-    const [deleted] = await db
-      .delete(bookmarks)
-      .where(
-        and(eq(bookmarks.userId, userId), eq(bookmarks.lessonId, lessonId))
-      )
-      .returning();
-
-    return deleted;
-  } catch (error) {
-    logger.error("Error deleting bookmark", { error });
-
-    throw error;
-  }
-};
-
-export const getBookmarks = async (userId: string) => {
-  try {
-    const userBookmarks = await db.query.bookmarks.findMany({
-      where: eq(bookmarks.userId, userId),
-      with: {
-        lesson: true,
+    const existingBookmark = await prisma.bookmark.findFirst({
+      where: {
+        id: bookmarkId,
+        userId,
       },
-      orderBy: (bookmarks, { desc }) => [desc(bookmarks.createdAt)],
     });
 
-    return userBookmarks;
+    if (!existingBookmark) {
+      logger.error("Bookmark not found");
+
+      throw new Error("NOT_FOUND");
+    }
+
+    const bookmark = await prisma.bookmark.delete({
+      where: { id: bookmarkId },
+    });
+
+    return bookmark;
   } catch (error) {
-    logger.error("Error fetching user's bookmarks", { error });
+    logger.error("Error deleting bookmark", { error });
 
     throw error;
   }

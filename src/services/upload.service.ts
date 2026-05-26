@@ -20,27 +20,34 @@ export const removeTmp = (path: string) => {
   });
 };
 
-export const uploadImageService = async (req: Request) => {
+export const uploadFileService = async (req: Request) => {
   try {
     if (!req.files || Object.keys(req.files).length === 0) {
       throw {
         status: 400,
-        message: "No image was selected, please select a image.",
+        message: "No file was selected, please select a file.",
       };
     }
     const file = req.files.file as CloudinaryFile;
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > 5 * 1024 * 1024) {
       removeTmp(file.tempFilePath);
       throw {
         status: 400,
-        message: "Image size is too large. (required within 2mb)",
+        message: "File size is too large. (required within 2mb)",
       };
     }
-    if (file.mimetype !== "image/jpeg" && file.mimetype !== "image/png") {
+    if (
+      file.mimetype !== "image/jpeg" &&
+      file.mimetype !== "image/jpg" &&
+      file.mimetype !== "image/png" &&
+      file.mimetype !== "video/mp4" &&
+      file.mimetype !== "video/webm" &&
+      file.mimetype !== "video/ogg"
+    ) {
       removeTmp(file.tempFilePath);
       throw {
         status: 400,
-        message: "Image format is incorrect. (required jpeg or png)",
+        message: "File format is incorrect. (required jpeg or png)",
       };
     }
 
@@ -48,7 +55,11 @@ export const uploadImageService = async (req: Request) => {
       (resolve, reject) => {
         cloudinary.v2.uploader.upload(
           file.tempFilePath,
-          { folder: "e-commerce" },
+          {
+            folder: "ai-byte",
+            resource_type: "auto",
+            upload_preset: "ml_default",
+          },
           (error, result) => {
             removeTmp(file.tempFilePath);
             if (error) return reject({ status: 400, message: error.message });
@@ -63,23 +74,23 @@ export const uploadImageService = async (req: Request) => {
       }
     );
   } catch (error) {
-    logger.error("Error to upload image", { error });
+    logger.error("Error to upload file", { error });
 
     throw error;
   }
 };
 
-export const deleteImageService = async (public_id: string) => {
+export const deleteFileService = async (public_id: string) => {
   try {
     return new Promise<{ message: string }>((resolve, reject) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       cloudinary.v2.uploader.destroy(public_id, (error: any) => {
         if (error) return reject({ status: 500, message: error.message });
-        resolve({ message: "Image Deleted Successfully." });
+        resolve({ message: "File Deleted Successfully." });
       });
     });
   } catch (error) {
-    logger.error("Error to delete image", { error });
+    logger.error("Error to delete file", { error });
 
     throw error;
   }

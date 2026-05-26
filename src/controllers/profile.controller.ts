@@ -1,18 +1,17 @@
-import { Request, Response } from "express";
-import { getAuth } from "@clerk/express";
+import { Request, Response, NextFunction } from "express";
 import { logger } from "@sentry/node";
 
 import {
   getProfileService,
   updateProfileService,
-  updatePreferencesService,
   getPublicProfileService,
+  updateProfilePreferencesService,
 } from "../services/profile.service";
 import { formatValidationError } from "../utils/format";
 import { userIdSchema } from "../validations/user.validation";
 import {
-  updatePreferencesSchema,
   updateProfileSchema,
+  updateProfilePreferencesSchema,
 } from "../validations/profile.validation";
 import {
   deleteCache,
@@ -24,7 +23,8 @@ import { redisKeys } from "../utils/redisKeys";
 
 export const getPublicProfileController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     logger.info(`User public profile ${req.params.id} started fetching`);
@@ -46,29 +46,37 @@ export const getPublicProfileController = async (
 
     const { userId } = validationResult.data;
 
-    const profile = await getPublicProfileService(userId);
+    const user = await getPublicProfileService(userId);
 
     logger.info(`User public profile ${userId} retrieved successfully`);
 
-    await setCache(redisKeys.publicProfile(userId), { success: true, profile });
+    await setCache(redisKeys.publicProfile(userId), { success: true, user });
 
-    res.json({ success: true, profile });
+    res.json({ success: true, user });
   } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Profile not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };
 
-export const getProfileController = async (req: Request, res: Response) => {
+export const getProfileController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const { userId: rawUserId } = getAuth(req);
+    logger.info(`User profile ${req.user.id} started fetching`);
 
-    logger.info(`User profile ${rawUserId} started fetching`);
-
-    const validationResult = userIdSchema.safeParse({ userId: rawUserId });
+    const validationResult = userIdSchema.safeParse({ userId: req.user.id });
 
     if (!validationResult.success) {
       logger.error("Validation failed to get profile", {
@@ -85,45 +93,40 @@ export const getProfileController = async (req: Request, res: Response) => {
 
     const { userId } = validationResult.data;
 
-    const profile = await getProfileService(userId);
+    const user = await getProfileService(userId);
 
     logger.info(`User profile ${userId} retrieved successfully`);
 
-    await setCache(redisKeys.profile(userId), { success: true, profile });
+    await setCache(redisKeys.profile(userId), { success: true, user });
 
-    res.json({ success: true, profile });
+    res.json({ success: true, user });
   } catch (error: unknown) {
-    res.status(500).json({
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
-  }
-};
+    const message = error instanceof Error ? error.message : String(error);
 
-export const updateProfileController = async (req: Request, res: Response) => {
-  try {
-    const { userId: rawUserId } = getAuth(req);
-
-    logger.info(`User profile ${rawUserId} started updating`);
-
-    const idValidationResult = userIdSchema.safeParse({ userId: rawUserId });
-
-    if (!idValidationResult.success) {
-      logger.error("Validation failed to update profile", {
-        error: formatValidationError(idValidationResult.error),
-      });
-
-      res.status(400).json({
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
         success: false,
-        error: "Validation failed",
-        message: formatValidationError(idValidationResult.error),
+        message: "Profile not found",
       });
       return;
     }
 
-    const { userId } = idValidationResult.data;
+    next(error);
+  }
+};
 
-    const validationResult = updateProfileSchema.safeParse(req.body);
+export const updateProfileController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    logger.info(`User profile ${req.user.id} started updating`);
+
+    const validationResult = updateProfileSchema.safeParse({
+      ...req.body,
+      userId: req.user.id,
+    });
 
     if (!validationResult.success) {
       logger.error("Validation failed to update profile", {
@@ -138,16 +141,8 @@ export const updateProfileController = async (req: Request, res: Response) => {
       return;
     }
 
-    const {
-      name,
-      username,
-      bio,
-      avatarUrl,
-      avatarPublicId,
-      interests,
-      goals,
-      onboardingCompleted,
-    } = validationResult.data;
+    const { name, username, bio, avatarUrl, avatarPublicId, userId } =
+      validationResult.data;
 
     const profile = await updateProfileService({
       userId,
@@ -156,9 +151,6 @@ export const updateProfileController = async (req: Request, res: Response) => {
       bio,
       avatarUrl,
       avatarPublicId,
-      interests,
-      goals,
-      onboardingCompleted,
     });
 
     logger.info(`User profile ${userId} updated successfully`);
@@ -171,43 +163,38 @@ export const updateProfileController = async (req: Request, res: Response) => {
     await deleteCache(redisKeys.profile(userId));
     await deleteCache(redisKeys.publicProfile(userId));
 
-    res.json({ success: true, profile });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    res.json({
+      success: true,
+      profile,
+      message: "Profile updated successfully",
     });
-    return;
-  }
-};
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
 
-export const updatePreferencesController = async (
-  req: Request,
-  res: Response
-) => {
-  try {
-    const { userId: rawUserId } = getAuth(req);
-
-    logger.info(`User profile preferences ${rawUserId} started updating`);
-
-    const idValidationResult = userIdSchema.safeParse({ userId: rawUserId });
-
-    if (!idValidationResult.success) {
-      logger.error("Validation failed to update profile preferences", {
-        error: formatValidationError(idValidationResult.error),
-      });
-
-      res.status(400).json({
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
         success: false,
-        error: "Validation failed",
-        message: formatValidationError(idValidationResult.error),
+        message: "Profile not found",
       });
       return;
     }
 
-    const { userId } = idValidationResult.data;
+    next(error);
+  }
+};
 
-    const validationResult = updatePreferencesSchema.safeParse(req.body);
+export const updateProfilePreferencesController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    logger.info(`User profile preferences ${req.user.id} started updating`);
+
+    const validationResult = updateProfilePreferencesSchema.safeParse({
+      ...req.body,
+      userId: req.user.id,
+    });
 
     if (!validationResult.success) {
       logger.error("Validation failed to update profifle preferences", {
@@ -223,20 +210,21 @@ export const updatePreferencesController = async (
     }
 
     const {
-      learningPreference,
-      videoPreference,
+      interests,
+      goals,
       dailyReminderEnabled,
       dailyReminderTime,
       streakReminderEnabled,
       lessonReminderEnabled,
       pushNotificationsEnabled,
       emailNotificationsEnabled,
+      userId,
     } = validationResult.data;
 
-    const profile = await updatePreferencesService({
+    const profile = await updateProfilePreferencesService({
       userId,
-      learningPreference,
-      videoPreference,
+      interests,
+      goals,
       dailyReminderEnabled,
       dailyReminderTime,
       streakReminderEnabled,
@@ -255,12 +243,22 @@ export const updatePreferencesController = async (
     await deleteCache(redisKeys.profile(userId));
     await deleteCache(redisKeys.publicProfile(userId));
 
-    res.json({ success: true, profile });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    res.json({
+      success: true,
+      profile,
+      message: "Profile preferences updatedsuccessfully",
     });
-    return;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Profile not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };

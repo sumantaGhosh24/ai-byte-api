@@ -2,7 +2,7 @@ import { Response, NextFunction, Request } from "express";
 import { logger } from "@sentry/node";
 import { getAuth } from "@clerk/express";
 
-import { getLocalUser } from "../utils/users";
+import { prisma } from "../config/db";
 
 export const requireAdmin = async (
   req: Request,
@@ -23,9 +23,24 @@ export const requireAdmin = async (
       });
     }
 
-    const user = await getLocalUser(userId);
+    const user = await prisma.user.findUnique({
+      where: {
+        clerkId: userId,
+      },
+    });
 
-    if (!user?.isAdmin) {
+    if (!user) {
+      logger.error("Unauthenticated", {
+        reason: "User not found",
+      });
+
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (user.role !== "admin") {
       logger.error("Unauthorized", {
         reason: "User not authenticated",
       });
@@ -35,6 +50,13 @@ export const requireAdmin = async (
         message: "Forbidden admin only",
       });
     }
+
+    req.user = {
+      id: user.id,
+      clerkId: user.clerkId,
+      email: user.email,
+      role: user.role,
+    };
 
     next();
   } catch (error) {

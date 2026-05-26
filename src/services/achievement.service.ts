@@ -1,64 +1,54 @@
-import { and, eq, ilike, sql } from "drizzle-orm";
 import { logger } from "@sentry/node";
 
-import { db } from "../db";
-import { achievements, userAchievements } from "../db/schema";
-
-interface GetAchievementsParams {
-  page: number;
-  limit: number;
-  search?: string;
-  achievementType?:
-    | "general"
-    | "learning"
-    | "quiz"
-    | "course"
-    | "streak"
-    | "custom";
-}
+import { prisma } from "../config/db";
+import { Prisma } from "../generated/prisma/client";
+import {
+  CreateAchievementParams,
+  CreateUserAchievementParams,
+  GetAchievementsParams,
+  UpdateAchievementParams,
+} from "../validations/achievement.validation";
 
 export const getAllAchievementsService = async ({
   page,
   limit,
   search,
   achievementType,
+  achievementRarity,
 }: GetAchievementsParams) => {
   try {
-    const offset = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-    const filters = [];
-    if (search) {
-      filters.push(ilike(achievements.title, `%${search}%`));
-    }
-    if (achievementType) {
-      filters.push(eq(achievements.achievementType, achievementType));
-    }
+    const where: Prisma.AchievementWhereInput = {
+      ...(search && { title: { contains: search, mode: "insensitive" } }),
+      ...(achievementType && { achievementType }),
+      ...(achievementRarity && { achievementRarity }),
+    };
 
-    const whereClause = filters.length ? and(...filters) : undefined;
+    const [items, total] = await Promise.all([
+      prisma.achievement.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
 
-    const data = await db.query.achievements.findMany({
-      where: whereClause,
-      limit,
-      offset,
-      orderBy: (achievements, { desc }) => [desc(achievements.createdAt)],
-    });
-
-    const total = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(achievements)
-      .where(whereClause);
+      prisma.achievement.count({ where }),
+    ]);
 
     return {
-      items: data,
-      paginations: {
+      items,
+      pagination: {
         page,
         limit,
-        total: Number(total[0]?.count || 0),
-        hasMore: offset + data.length < Number(total[0]?.count || 0),
+        total,
+        hasMore: skip + items.length < total,
+        nextPage: skip + items.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
       },
     };
   } catch (error) {
-    logger.error("Error fetching paginated achievements", { error });
+    logger.error("Error fetching achievements", { error });
 
     throw error;
   }
@@ -66,61 +56,41 @@ export const getAllAchievementsService = async ({
 
 export const getAchievementByIdService = async (id: string) => {
   try {
-    const achievement = await db.query.achievements.findFirst({
-      where: eq(achievements.id, id),
+    const achievement = await prisma.achievement.findUnique({
+      where: { id },
     });
 
     if (!achievement) {
-      logger.error("Achievement not found");
-
-      throw new Error("Achievement not found");
+      throw new Error("NOT_FOUND");
     }
 
     return achievement;
   } catch (error) {
-    logger.error("Error fetching achievement", { error });
+    logger.error("Error fetching achievement by ID", { error, id });
 
     throw error;
   }
 };
-
-interface CreateAchievementParams {
-  title: string;
-  description: string;
-  badgeImage: string;
-  badgeImagePublicId: string;
-  xpReward: number;
-  achievementType:
-    | "general"
-    | "learning"
-    | "quiz"
-    | "course"
-    | "streak"
-    | "custom";
-}
 
 export const createAchievementService = async ({
   title,
   description,
   badgeImage,
   badgeImagePublicId,
-  xpReward,
   achievementType,
+  achievementRarity,
 }: CreateAchievementParams) => {
   try {
-    const [row] = await db
-      .insert(achievements)
-      .values({
+    return await prisma.achievement.create({
+      data: {
         title: title.trim(),
         description: description.trim(),
         badgeImage,
         badgeImagePublicId,
-        xpReward,
         achievementType,
-      })
-      .returning();
-
-    return row;
+        achievementRarity,
+      },
+    });
   } catch (error) {
     logger.error("Error creating achievement", { error });
 
@@ -128,59 +98,35 @@ export const createAchievementService = async ({
   }
 };
 
-interface UpdateAchievementParams {
-  id: string;
-  title?: string;
-  description?: string;
-  badgeImage?: string;
-  badgeImagePublicId?: string;
-  xpReward?: number;
-  achievementType?:
-    | "general"
-    | "learning"
-    | "quiz"
-    | "course"
-    | "streak"
-    | "custom";
-}
-
 export const updateAchievementService = async ({
-  id,
-  title,
-  description,
+  achievementId,
+  achievementRarity,
+  achievementType,
   badgeImage,
   badgeImagePublicId,
-  xpReward,
-  achievementType,
+  description,
+  title,
 }: UpdateAchievementParams) => {
   try {
-    const existingAchievement = await db.query.achievements.findFirst({
-      where: eq(achievements.id, id),
+    const exists = await prisma.achievement.findUnique({
+      where: { id: achievementId },
     });
 
-    if (!existingAchievement) {
-      logger.error("Achievement not found");
-
-      throw new Error("Achievement not found");
+    if (!exists) {
+      throw new Error("NOT_FOUND");
     }
 
-    const [achievement] = await db
-      .update(achievements)
-      .set({
-        ...(title !== undefined ? { title: title.trim() } : {}),
-        ...(description !== undefined
-          ? { description: description.trim() }
-          : {}),
-        ...(badgeImage !== undefined ? { badgeImage } : {}),
-        ...(badgeImagePublicId !== undefined ? { badgeImagePublicId } : {}),
-        ...(xpReward !== undefined ? { xpReward } : {}),
-        ...(achievementType !== undefined ? { achievementType } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(achievements.id, id))
-      .returning();
-
-    return achievement;
+    return await prisma.achievement.update({
+      where: { id: achievementId },
+      data: {
+        ...(title && { title: title.toLowerCase() }),
+        ...(description && { description: description.toLowerCase() }),
+        ...(badgeImage !== undefined && { badgeImage }),
+        ...(badgeImagePublicId !== undefined && { badgeImagePublicId }),
+        ...(achievementType && { achievementType }),
+        ...(achievementRarity && { achievementRarity }),
+      },
+    });
   } catch (error) {
     logger.error("Error updating achievement", { error });
 
@@ -190,22 +136,17 @@ export const updateAchievementService = async ({
 
 export const deleteAchievementService = async (id: string) => {
   try {
-    const existingAchievement = await db.query.achievements.findFirst({
-      where: eq(achievements.id, id),
+    const exists = await prisma.achievement.findUnique({
+      where: { id },
     });
 
-    if (!existingAchievement) {
-      logger.error("Achievement not found");
-
-      throw new Error("Achievement not found");
+    if (!exists) {
+      throw new Error("NOT_FOUND");
     }
 
-    const [achievement] = await db
-      .delete(achievements)
-      .where(eq(achievements.id, id))
-      .returning();
-
-    return achievement;
+    return await prisma.achievement.delete({
+      where: { id },
+    });
   } catch (error) {
     logger.error("Error deleting achievement", { error });
 
@@ -215,17 +156,11 @@ export const deleteAchievementService = async (id: string) => {
 
 export const getUserAchievementsService = async (userId: string) => {
   try {
-    const userAchievementsList = await db.query.userAchievements.findMany({
-      where: eq(userAchievements.userId, userId),
-      with: {
-        achievement: true,
-      },
-      orderBy: (userAchievements, { desc }) => [
-        desc(userAchievements.unlockedAt),
-      ],
+    return await prisma.userAchievement.findMany({
+      where: { userId },
+      include: { achievement: true },
+      orderBy: { unlockedAt: "desc" },
     });
-
-    return userAchievementsList;
   } catch (error) {
     logger.error("Error fetching user achievements", { error });
 
@@ -233,38 +168,52 @@ export const getUserAchievementsService = async (userId: string) => {
   }
 };
 
-interface CreateUserAchievementParams {
-  userId: string;
-  achievementId: string;
-}
-
 export const createUserAchievementService = async ({
   userId,
   achievementId,
 }: CreateUserAchievementParams) => {
   try {
-    const exists = await db.query.userAchievements.findFirst({
-      where: and(
-        eq(userAchievements.userId, userId),
-        eq(userAchievements.achievementId, achievementId)
-      ),
+    const existing = await prisma.userAchievement.findUnique({
+      where: {
+        userId_achievementId: {
+          userId,
+          achievementId,
+        },
+      },
     });
-    if (exists) {
-      return exists;
+
+    if (existing) {
+      return existing;
     }
 
-    const [created] = await db
-      .insert(userAchievements)
-      .values({
+    const achievement = await prisma.achievement.findUnique({
+      where: { id: achievementId },
+    });
+
+    if (!achievement) {
+      throw new Error("NOT_FOUND");
+    }
+
+    const userAchievement = await prisma.userAchievement.create({
+      data: {
         userId,
         achievementId,
-        unlockedAt: new Date(),
-      })
-      .returning();
+      },
+      include: { achievement: true },
+    });
 
-    return created;
+    await prisma.notification.create({
+      data: {
+        userId,
+        type: "achievement",
+        title: "🏆 Achievement Unlocked",
+        message: `You unlocked "${achievement.title}" achievement.`,
+      },
+    });
+
+    return userAchievement;
   } catch (error) {
-    logger.error("Error granting user achievement", { error });
+    logger.error("Error creating user achievement", { error });
 
     throw error;
   }
@@ -275,17 +224,14 @@ export const deleteUserAchievementService = async ({
   achievementId,
 }: CreateUserAchievementParams) => {
   try {
-    const [deleted] = await db
-      .delete(userAchievements)
-      .where(
-        and(
-          eq(userAchievements.userId, userId),
-          eq(userAchievements.achievementId, achievementId)
-        )
-      )
-      .returning();
-
-    return deleted;
+    return await prisma.userAchievement.delete({
+      where: {
+        userId_achievementId: {
+          userId,
+          achievementId,
+        },
+      },
+    });
   } catch (error) {
     logger.error("Error deleting user achievement", { error });
 

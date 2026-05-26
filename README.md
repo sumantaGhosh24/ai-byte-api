@@ -8,7 +8,7 @@ Built with:
 - Express.js
 - TypeScript
 - PostgreSQL
-- Drizzle ORM
+- Prisma ORM
 - Clerk Authentication
 - Redis
 - Neon DB

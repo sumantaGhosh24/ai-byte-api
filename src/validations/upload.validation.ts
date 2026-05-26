@@ -1,3 +1,3 @@
 import { z } from "zod";
 
-export const deleteImageSchema = z.object({ public_id: z.string().min(1) });
+export const deleteFileSchema = z.object({ public_id: z.string().min(1) });

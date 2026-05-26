@@ -50,6 +50,12 @@ export default [
     },
   },
   {
-    ignores: ["node_modules/**", "coverage/**", "logs/**", "dist/**"],
+    ignores: [
+      "node_modules/**",
+      "coverage/**",
+      "logs/**",
+      "dist/**",
+      "/src/generated/prisma",
+    ],
   },
 ];

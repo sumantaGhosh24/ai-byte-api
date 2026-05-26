@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { logger } from "@sentry/node";
 
 import { formatValidationError } from "../utils/format";
@@ -17,48 +17,74 @@ import {
   createAchievementSchema,
   updateAchievementSchema,
   createUserAchievementSchema,
+  getAchievementsQuerySchema,
 } from "../validations/achievement.validation";
 import { userIdSchema } from "../validations/user.validation";
+import {
+  deleteCache,
+  deleteManyCache,
+  getKeys,
+  setCache,
+} from "../utils/cache";
+import { redisKeys } from "../utils/redisKeys";
 
 export const getAllAchievementsController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 10);
-    const search = req.query.search as string | undefined;
-    const achievementType = req.query.achievementType as
-      | "general"
-      | "learning"
-      | "quiz"
-      | "course"
-      | "streak"
-      | "custom"
-      | undefined;
+    logger.info("Started fetching achievements");
 
-    logger.info("Started fetching paginated all achievements");
+    const validationResult = getAchievementsQuerySchema.safeParse(req.query);
+
+    if (!validationResult.success) {
+      logger.error("Validation failed to get achievements", {
+        error: formatValidationError(validationResult.error),
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        message: formatValidationError(validationResult.error),
+      });
+    }
+
+    const { page, limit, search, achievementType, achievementRarity } =
+      validationResult.data;
 
     const result = await getAllAchievementsService({
       page,
       limit,
       search,
       achievementType,
+      achievementRarity,
     });
 
-    logger.info("Successfully fetched paginated achievements");
+    await setCache(
+      redisKeys.achievements(JSON.stringify(req.query)).replace(/"/g, ""),
+      {
+        success: true,
+        result,
+      }
+    );
 
-    res.json({ success: true, result });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    logger.info("Successfully fetched achievements");
+
+    res.json({
+      success: true,
+      result,
     });
-    return;
+  } catch (error) {
+    next(error);
   }
 };
 
-export const getAchievementController = async (req: Request, res: Response) => {
+export const getAchievementController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     logger.info(`Started fetching achievement ${req.params.id}`);
 
@@ -71,33 +97,47 @@ export const getAchievementController = async (req: Request, res: Response) => {
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const { id } = validationResult.data;
 
     const achievement = await getAchievementByIdService(id);
 
+    await setCache(redisKeys.achievement(id), {
+      success: true,
+      achievement,
+    });
+
     logger.info(`Successfully fetched achievement ${id}`);
 
-    res.json({ success: true, achievement });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    res.json({
+      success: true,
+      achievement,
     });
-    return;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Quiz not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };
 
 export const createAchievementController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     logger.info("Started creating achievement");
@@ -109,12 +149,11 @@ export const createAchievementController = async (
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const {
@@ -122,8 +161,8 @@ export const createAchievementController = async (
       description,
       badgeImage,
       badgeImagePublicId,
-      xpReward,
       achievementType,
+      achievementRarity,
     } = validationResult.data;
 
     const achievement = await createAchievementService({
@@ -131,97 +170,103 @@ export const createAchievementController = async (
       description,
       badgeImage,
       badgeImagePublicId,
-      xpReward,
       achievementType,
+      achievementRarity,
     });
+
+    const keys = await getKeys("achievements:*");
+    if (keys?.length) {
+      await deleteManyCache(keys);
+    }
 
     logger.info("Successfully created achievement");
 
-    res.status(201).json({ success: true, achievement });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    res.status(201).json({
+      success: true,
+      achievement,
     });
-    return;
+  } catch (error) {
+    next(error);
   }
 };
 
 export const updateAchievementController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     logger.info(`Started updating achievement ${req.params.id}`);
 
-    const idValidationResult = achievementIdSchema.safeParse({
-      id: req.params.id,
+    const validationResult = updateAchievementSchema.safeParse({
+      ...req.body,
+      achievementId: req.params.id,
     });
 
-    if (!idValidationResult.success) {
-      logger.error("Validation failed to update achievement (id)", {
-        error: formatValidationError(idValidationResult.error),
-      });
-
-      res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        message: formatValidationError(idValidationResult.error),
-      });
-      return;
-    }
-
-    const { id } = idValidationResult.data;
-
-    const validationResult = updateAchievementSchema.safeParse(req.body);
-
     if (!validationResult.success) {
-      logger.error("Validation failed to update achievement (body)", {
+      logger.error("Validation failed to update achievement", {
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const {
-      title,
-      description,
+      achievementId,
+      achievementRarity,
+      achievementType,
       badgeImage,
       badgeImagePublicId,
-      xpReward,
-      achievementType,
+      description,
+      title,
     } = validationResult.data;
 
     const achievement = await updateAchievementService({
-      id,
-      title,
-      description,
+      achievementId,
+      achievementRarity,
+      achievementType,
       badgeImage,
       badgeImagePublicId,
-      xpReward,
-      achievementType,
+      description,
+      title,
     });
 
-    logger.info(`Successfully updated achievement ${id}`);
+    const keys = await getKeys("achievements:*");
+    if (keys?.length) {
+      await deleteManyCache(keys);
+    }
 
-    res.json({ success: true, achievement });
+    await deleteCache(redisKeys.achievement(achievementId));
+
+    logger.info(`Successfully updated achievement ${achievementId}`);
+
+    res.json({
+      success: true,
+      achievement,
+    });
   } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Quiz not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };
 
 export const deleteAchievementController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     logger.info(`Started deleting achievement ${req.params.id}`);
@@ -235,33 +280,49 @@ export const deleteAchievementController = async (
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const { id } = validationResult.data;
 
     const achievement = await deleteAchievementService(id);
 
+    const keys = await getKeys("achievements:*");
+    if (keys?.length) {
+      await deleteManyCache(keys);
+    }
+
+    await deleteCache(redisKeys.achievement(id));
+
     logger.info(`Successfully deleted achievement ${id}`);
 
-    res.json({ success: true, achievement });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    res.json({
+      success: true,
+      achievement,
     });
-    return;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Quiz not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };
 
 export const getUserAchievementsController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     logger.info(`Started fetching achievements for user ${req.params.userId}`);
@@ -271,56 +332,57 @@ export const getUserAchievementsController = async (
     });
 
     if (!validationResult.success) {
-      logger.error("Validation failed to get user achievement", {
+      logger.error("Validation failed to get user achievements", {
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const { userId } = validationResult.data;
 
     const result = await getUserAchievementsService(userId);
 
+    await setCache(redisKeys.userAchievements(userId), {
+      success: true,
+      result,
+    });
+
     logger.info(`Successfully fetched achievements for user ${userId}`);
 
-    res.json({ success: true, result });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    res.json({
+      success: true,
+      result,
     });
-    return;
+  } catch (error) {
+    next(error);
   }
 };
 
 export const createUserAchievementController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    logger.info(
-      `Started granting achievement to user  ${req.body.achievementId} to user ${req.body.userId}`
-    );
+    logger.info("Started granting achievement");
 
     const validationResult = createUserAchievementSchema.safeParse(req.body);
 
     if (!validationResult.success) {
-      logger.error("Validation failed to create user achievement", {
+      logger.error("Validation failed to grant achievement", {
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const { userId, achievementId } = validationResult.data;
@@ -330,28 +392,28 @@ export const createUserAchievementController = async (
       achievementId,
     });
 
+    await deleteCache(redisKeys.userAchievements(userId));
+
     logger.info(
       `Successfully granted achievement ${achievementId} to user ${userId}`
     );
 
-    res.status(201).json({ success: true, userAchievement });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    res.status(201).json({
+      success: true,
+      userAchievement,
     });
-    return;
+  } catch (error) {
+    next(error);
   }
 };
 
 export const deleteUserAchievementController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    logger.info(
-      `Started deleting user achievement ${req.body.achievementId} from user ${req.body.userId}`
-    );
+    logger.info("Started deleting user achievement");
 
     const validationResult = createUserAchievementSchema.safeParse(req.body);
 
@@ -360,31 +422,31 @@ export const deleteUserAchievementController = async (
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const { userId, achievementId } = validationResult.data;
 
-    const deleted = await deleteUserAchievementService({
+    const userAchievement = await deleteUserAchievementService({
       userId,
       achievementId,
     });
 
+    await deleteCache(redisKeys.userAchievements(userId));
+
     logger.info(
-      `Successfully deleted achievement ${achievementId} from user ${userId}`
+      `Successfully removed achievement ${achievementId} from user ${userId}`
     );
 
-    res.json({ success: true, userAchievement: deleted });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    res.json({
+      success: true,
+      userAchievement,
     });
-    return;
+  } catch (error: unknown) {
+    next(error);
   }
 };

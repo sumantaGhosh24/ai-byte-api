@@ -1,11 +1,9 @@
 import { Response, NextFunction, Request } from "express";
 import { logger } from "@sentry/node";
 import { getAuth } from "@clerk/express";
-import { eq } from "drizzle-orm";
 
 import { getLocalUser } from "../utils/users";
-import { db } from "../db";
-import { profiles } from "../db/schema";
+import { prisma } from "../config/db";
 
 export const requireOnboarding = async (
   req: Request,
@@ -39,11 +37,11 @@ export const requireOnboarding = async (
       });
     }
 
-    const [profile] = await db
-      .select()
-      .from(profiles)
-      .where(eq(profiles.userId, user.id))
-      .limit(1);
+    const profile = await prisma.profile.findUnique({
+      where: {
+        userId: user.id,
+      },
+    });
 
     if (!profile?.onboardingCompleted) {
       return res.status(403).json({

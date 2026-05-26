@@ -2,6 +2,8 @@ import { Response, NextFunction, Request } from "express";
 import { logger } from "@sentry/node";
 import { getAuth } from "@clerk/express";
 
+import { prisma } from "../config/db";
+
 export const requireAuth = async (
   req: Request,
   res: Response,
@@ -20,6 +22,30 @@ export const requireAuth = async (
         message: "User not authenticated",
       });
     }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        clerkId: userId,
+      },
+    });
+
+    if (!user) {
+      logger.error("Unauthenticated", {
+        reason: "User not found",
+      });
+
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    req.user = {
+      id: user.id,
+      clerkId: user.clerkId,
+      email: user.email,
+      role: user.role,
+    };
 
     next();
   } catch (error) {

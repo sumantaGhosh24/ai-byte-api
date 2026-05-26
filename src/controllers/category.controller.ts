@@ -1,9 +1,9 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { logger } from "@sentry/node";
 
 import {
+  getPublicCategoriesService,
   getAllCategoriesService,
-  getPaginatedCategoriesService,
   getCategoryService,
   createCategoryService,
   updateCategoryService,
@@ -11,6 +11,7 @@ import {
 } from "../services/category.service";
 import { formatValidationError } from "../utils/format";
 import {
+  categorieSchema,
   categoryIdSchema,
   createCategorySchema,
   updateCategorySchema,
@@ -23,60 +24,78 @@ import {
 } from "../utils/cache";
 import { redisKeys } from "../utils/redisKeys";
 
-export const getAllCategoriesController = async (
+export const getPublicCategoriesController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    logger.info("Started fetching all categories");
+    logger.info("Started fetching public categories");
 
-    const categories = await getAllCategoriesService();
+    const categories = await getPublicCategoriesService();
 
-    logger.info("Successfully fetched all categories");
+    logger.info("Successfully fetched public categories");
 
     await setCache(redisKeys.categories, { success: true, categories });
 
     res.json({ success: true, categories });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+  } catch (error) {
+    next(error);
   }
 };
 
-export const getPaginatedCategoriesController = async (
+export const getAllCategoriesController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 10);
-    const search = req.query.search as string;
+    logger.info("Started fetching all categories");
 
-    logger.info("Started fetching paginated categories");
-
-    const result = await getPaginatedCategoriesService({ page, limit, search });
-
-    logger.info("Successfully fetched paginated categories");
-
-    await setCache(redisKeys.pCategories(JSON.stringify(req.query)), {
-      success: true,
-      result,
+    const validationResult = categorieSchema.safeParse({
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search,
     });
+
+    if (!validationResult.success) {
+      logger.error("Validation failed to get all categories", {
+        error: formatValidationError(validationResult.error),
+      });
+
+      res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        message: formatValidationError(validationResult.error),
+      });
+      return;
+    }
+
+    const { page, limit, search } = validationResult.data;
+
+    const result = await getAllCategoriesService({ page, limit, search });
+
+    logger.info("Successfully fetched all categories");
+
+    await setCache(
+      redisKeys.adminCategories(JSON.stringify(req.query)).replace(/"/g, ""),
+      {
+        success: true,
+        result,
+      }
+    );
 
     res.json({ success: true, result });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+  } catch (error) {
+    next(error);
   }
 };
 
-export const getCategoryController = async (req: Request, res: Response) => {
+export const getCategoryController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     logger.info(`Started fetching category ${req.params.id}`);
 
@@ -105,15 +124,25 @@ export const getCategoryController = async (req: Request, res: Response) => {
 
     res.json({ success: true, category });
   } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Category not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };
 
-export const createCategoryController = async (req: Request, res: Response) => {
+export const createCategoryController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     logger.info("Started creating category");
 
@@ -143,50 +172,48 @@ export const createCategoryController = async (req: Request, res: Response) => {
 
     logger.info("Successfully created category");
 
-    const keys = await getKeys("categories-paginated:*");
+    const keys = await getKeys("admin:categories:*");
     if (keys?.length) {
       await deleteManyCache(keys);
     }
 
     await deleteCache(redisKeys.categories);
 
-    res.status(201).json({ success: true, category });
+    res.status(201).json({
+      success: true,
+      category,
+      message: "Category created successfully",
+    });
   } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
-  }
-};
+    const message = error instanceof Error ? error.message : String(error);
 
-export const updateCategoryController = async (req: Request, res: Response) => {
-  try {
-    logger.info(`Started updating category ${req.params.id}`);
-
-    const idValidationResult = categoryIdSchema.safeParse({
-      id: req.params.id,
-    });
-
-    if (!idValidationResult.success) {
-      logger.error("Validation failed to update category (id)", {
-        error: formatValidationError(idValidationResult.error),
-      });
-
-      res.status(400).json({
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
         success: false,
-        error: "Validation failed",
-        message: formatValidationError(idValidationResult.error),
+        message: "Category not found",
       });
       return;
     }
 
-    const { id } = idValidationResult.data;
+    next(error);
+  }
+};
 
-    const validationResult = updateCategorySchema.safeParse(req.body);
+export const updateCategoryController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    logger.info(`Started updating category ${req.params.id}`);
+
+    const validationResult = updateCategorySchema.safeParse({
+      ...req.body,
+      id: req.params.id,
+    });
 
     if (!validationResult.success) {
-      logger.error("Validation failed to update category (body)", {
+      logger.error("Validation failed to update category", {
         error: formatValidationError(validationResult.error),
       });
 
@@ -198,7 +225,8 @@ export const updateCategoryController = async (req: Request, res: Response) => {
       return;
     }
 
-    const { name, imageUrl, imagePublicId, visibility } = validationResult.data;
+    const { id, name, imageUrl, imagePublicId, visibility } =
+      validationResult.data;
 
     const category = await updateCategoryService({
       id,
@@ -210,7 +238,7 @@ export const updateCategoryController = async (req: Request, res: Response) => {
 
     logger.info(`Successfully updated category ${id}`);
 
-    const keys = await getKeys("categories-paginated:*");
+    const keys = await getKeys("admin:categories:*");
     if (keys?.length) {
       await deleteManyCache(keys);
     }
@@ -218,17 +246,31 @@ export const updateCategoryController = async (req: Request, res: Response) => {
     await deleteCache(redisKeys.categories);
     await deleteCache(redisKeys.category(id));
 
-    res.json({ success: true, category });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    res.json({
+      success: true,
+      category,
+      message: "Category updated successfully",
     });
-    return;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Category not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };
 
-export const deleteCategoryController = async (req: Request, res: Response) => {
+export const deleteCategoryController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     logger.info(`Started deleting category ${req.params.id}`);
 
@@ -253,7 +295,7 @@ export const deleteCategoryController = async (req: Request, res: Response) => {
 
     logger.info(`Successfully deleted category ${id}`);
 
-    const keys = await getKeys("categories-paginated:*");
+    const keys = await getKeys("admin:categories:*");
     if (keys?.length) {
       await deleteManyCache(keys);
     }
@@ -261,12 +303,22 @@ export const deleteCategoryController = async (req: Request, res: Response) => {
     await deleteCache(redisKeys.categories);
     await deleteCache(redisKeys.category(id));
 
-    res.json({ success: true, category });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    res.json({
+      success: true,
+      category,
+      message: "Category deleted successfully",
     });
-    return;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Category not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };

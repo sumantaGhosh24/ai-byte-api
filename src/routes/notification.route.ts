@@ -1,13 +1,15 @@
 import { Router } from "express";
 import {
   registerNotificationTokenController,
-  createNotificationController,
   markNotificationReadController,
   markAllNotificationsReadController,
   getUserNotificationsController,
+  getUserNotificationTokenController,
 } from "../controllers/notification.controller";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { generalRateLimit } from "../middlewares/rateLimit.middleware";
+import { cacheMiddleware } from "../middlewares/cache.middleware";
+import { redisKeys } from "../utils/redisKeys";
 
 const router = Router();
 
@@ -18,11 +20,22 @@ router.post(
   registerNotificationTokenController
 );
 
-router.post(
+router.get(
+  "/notifications/token",
+  requireAuth,
+  generalRateLimit,
+  cacheMiddleware(req =>
+    redisKeys.notificationTokens(JSON.stringify(req.user.id))
+  ),
+  getUserNotificationTokenController
+);
+
+router.get(
   "/notifications",
   requireAuth,
   generalRateLimit,
-  createNotificationController
+  cacheMiddleware(req => redisKeys.notifications(JSON.stringify(req.user.id))),
+  getUserNotificationsController
 );
 
 router.patch(
@@ -37,13 +50,6 @@ router.patch(
   requireAuth,
   generalRateLimit,
   markAllNotificationsReadController
-);
-
-router.get(
-  "/notifications",
-  requireAuth,
-  generalRateLimit,
-  getUserNotificationsController
 );
 
 export default router;

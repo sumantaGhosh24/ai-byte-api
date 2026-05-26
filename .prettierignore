@@ -1,7 +1,8 @@
 node_modules/
 coverage/
 logs/
-drizzle/
+/src/generated/prisma
+generated/
 *.log
 package-lock.json
 

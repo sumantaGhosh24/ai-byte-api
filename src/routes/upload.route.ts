@@ -1,16 +1,16 @@
 import express from "express";
 
 import {
-  uploadImageController,
-  deleteImageController,
+  uploadFileController,
+  deleteFileController,
 } from "../controllers/upload.controller";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { generalRateLimit } from "../middlewares/rateLimit.middleware";
 
 const router = express.Router();
 
-router.post("/upload", requireAuth, generalRateLimit, uploadImageController);
+router.post("/upload", requireAuth, generalRateLimit, uploadFileController);
 
-router.post("/destroy", requireAuth, generalRateLimit, deleteImageController);
+router.post("/destroy", requireAuth, generalRateLimit, deleteFileController);
 
 export default router;

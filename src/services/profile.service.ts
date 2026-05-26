@@ -1,35 +1,282 @@
-import { eq } from "drizzle-orm";
 import { logger } from "@sentry/node";
 
-import { db } from "../db";
-import { profiles, streaks, users } from "../db/schema";
+import {
+  ACHIEVEMENT_TYPE_MULTIPLIER,
+  ACHIEVEMENT_XP,
+  QUIZ_SCORE_BONUS,
+  XP_BASE,
+  XP_DIFFICULTY_MULTIPLIER,
+} from "../constans";
+import {
+  UpdateProfileParams,
+  UpdateProfilePreferencesParams,
+} from "../validations/profile.validation";
+import { prisma } from "../config/db";
 
 export const getPublicProfileService = async (userId: string) => {
   try {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
     });
 
-    const profile = await db.query.profiles.findFirst({
-      where: eq(profiles.userId, userId),
-    });
+    if (!user) {
+      logger.error("User not found");
 
-    if (!user || !profile) {
-      logger.error("Profile not found");
-
-      throw new Error("Profile not found");
+      throw new Error("NOT_FOUND");
     }
 
-    const streak = await db.query.streaks.findFirst({
-      where: eq(streaks.userId, userId),
+    const [
+      enrollsCount,
+      progressCount,
+      finishedCoursesCount,
+      finishedLessonsCount,
+      totalBookmarks,
+      achievementsCount,
+      totalNotifications,
+      quizStats,
+      answerSubmissionStats,
+    ] = await Promise.all([
+      prisma.enroll.count({ where: { userId } }),
+
+      prisma.progress.count({ where: { userId } }),
+
+      prisma.enroll.count({
+        where: { userId, completed: true },
+      }),
+
+      prisma.progress.count({
+        where: { userId, completed: true },
+      }),
+
+      prisma.bookmark.count({ where: { userId } }),
+
+      prisma.userAchievement.count({ where: { userId } }),
+
+      prisma.notification.count({ where: { userId } }),
+
+      prisma.quizAttempt.aggregate({
+        where: { userId },
+        _count: { id: true },
+        _avg: { score: true },
+        _max: { score: true },
+        _min: { score: true },
+      }),
+
+      prisma.answerSubmission.count({
+        where: {
+          quizAttempt: { userId },
+        },
+      }),
+    ]);
+
+    const lastEnroll = await prisma.enroll.findFirst({
+      where: { userId },
+      orderBy: { startedAt: "desc" },
+      include: { course: true },
     });
 
+    const lastProgress = await prisma.progress.findFirst({
+      where: { userId },
+      orderBy: { startedAt: "desc" },
+      include: { lesson: true },
+    });
+
+    const completedLessons = await prisma.progress.findMany({
+      where: {
+        userId,
+        completed: true,
+      },
+      include: { lesson: true },
+    });
+
+    let lessonXP = 0;
+
+    for (const item of completedLessons) {
+      const difficulty =
+        item.lesson.difficulty.toUpperCase() as keyof typeof XP_DIFFICULTY_MULTIPLIER;
+
+      lessonXP +=
+        XP_BASE.LESSON_COMPLETION * XP_DIFFICULTY_MULTIPLIER[difficulty];
+    }
+
+    const courseXP = finishedCoursesCount * XP_BASE.COURSE_COMPLETION;
+
+    const userQuizAttempts = await prisma.quizAttempt.findMany({
+      where: { userId },
+    });
+
+    let quizXP = 0;
+
+    for (const attempt of userQuizAttempts) {
+      quizXP += XP_BASE.QUIZ_ATTEMPT;
+
+      const percentage = Number(attempt.percentage);
+
+      if (percentage === 100) {
+        quizXP += QUIZ_SCORE_BONUS.PERFECT;
+        quizXP += XP_BASE.QUIZ_PASS;
+      } else if (percentage >= 90) {
+        quizXP += QUIZ_SCORE_BONUS.ABOVE_90;
+        quizXP += XP_BASE.QUIZ_PASS;
+      } else if (percentage >= 80) {
+        quizXP += QUIZ_SCORE_BONUS.ABOVE_80;
+        quizXP += XP_BASE.QUIZ_PASS;
+      } else if (percentage >= 70) {
+        quizXP += QUIZ_SCORE_BONUS.ABOVE_70;
+        quizXP += XP_BASE.QUIZ_PASS;
+      }
+    }
+
+    const bookmarkXP = totalBookmarks * XP_BASE.BOOKMARK;
+
+    const onboardingXP = user.profile?.onboardingCompleted
+      ? XP_BASE.ONBOARDING_COMPLETE
+      : 0;
+
+    const firstLoginXP = XP_BASE.FIRST_LOGIN;
+
+    const achievementData = await prisma.userAchievement.findMany({
+      where: { userId },
+      include: {
+        achievement: true,
+      },
+    });
+
+    let achievementXP = 0;
+
+    for (const item of achievementData) {
+      const rarity =
+        item.achievement.achievementRarity.toUpperCase() as keyof typeof ACHIEVEMENT_XP;
+
+      const type =
+        item.achievement.achievementType.toUpperCase() as keyof typeof ACHIEVEMENT_TYPE_MULTIPLIER;
+
+      achievementXP +=
+        ACHIEVEMENT_XP[rarity] * ACHIEVEMENT_TYPE_MULTIPLIER[type];
+    }
+
+    const completedProgresses = await prisma.progress.findMany({
+      where: {
+        userId,
+        completed: true,
+      },
+      select: { finishedAt: true },
+      orderBy: { finishedAt: "desc" },
+    });
+
+    const uniqueDays = [
+      ...new Set(
+        completedProgresses
+          .filter(p => p.finishedAt)
+          .map(p => new Date(p.finishedAt!).toISOString().split("T")[0])
+      ),
+    ];
+
+    let currentStreak = 0;
+
+    if (uniqueDays.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const latest = new Date(uniqueDays[0] as string);
+      latest.setHours(0, 0, 0, 0);
+
+      const diff = Math.floor(
+        (today.getTime() - latest.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      if (diff === 0 || diff === 1) {
+        currentStreak = 1;
+
+        for (let i = 0; i < uniqueDays.length - 1; i++) {
+          const curr = new Date(uniqueDays[i] as string);
+          const next = new Date(uniqueDays[i + 1] as string);
+
+          curr.setHours(0, 0, 0, 0);
+          next.setHours(0, 0, 0, 0);
+
+          const d = Math.floor(
+            (curr.getTime() - next.getTime()) / (1000 * 60 * 60 * 24)
+          );
+
+          if (d === 1) currentStreak++;
+          else break;
+        }
+      }
+    }
+
+    let longestStreak = 0;
+    let temp = 0;
+
+    for (let i = 0; i < uniqueDays.length; i++) {
+      if (i === 0) {
+        temp = 1;
+        longestStreak = 1;
+        continue;
+      }
+
+      const prev = new Date(uniqueDays[i - 1] as string);
+      const curr = new Date(uniqueDays[i] as string);
+
+      prev.setHours(0, 0, 0, 0);
+      curr.setHours(0, 0, 0, 0);
+
+      const diff = Math.floor(
+        (prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      if (diff === 1) {
+        temp++;
+        longestStreak = Math.max(longestStreak, temp);
+      } else {
+        temp = 1;
+      }
+    }
+
+    const streakXP = currentStreak * XP_BASE.STREAK_DAILY;
+
+    const totalXP =
+      lessonXP +
+      courseXP +
+      quizXP +
+      bookmarkXP +
+      onboardingXP +
+      firstLoginXP +
+      achievementXP +
+      streakXP;
+
     return {
-      userId: user.id,
-      email: user.email,
-      profile,
-      streak: streak?.currentStreak || 0,
-      xp: user.xp || 0,
+      user,
+      stats: {
+        enrollsCount,
+        progressCount,
+        finishedCoursesCount,
+        finishedLessonsCount,
+        totalQuizAttempts: quizStats._count.id,
+        totalAnswerSubmissions: answerSubmissionStats,
+        averageScore: quizStats._avg.score ?? 0,
+        highestScore: quizStats._max.score ?? 0,
+        lowestScore: quizStats._min.score ?? 0,
+        totalBookmarks,
+        achievementsCount,
+        totalNotifications,
+        currentStreak,
+        longestStreak,
+      },
+      lastEnroll,
+      lastProgress,
+      xp: {
+        lessonXP,
+        courseXP,
+        quizXP,
+        bookmarkXP,
+        onboardingXP,
+        firstLoginXP,
+        achievementXP,
+        streakXP,
+        totalXP,
+      },
     };
   } catch (error) {
     logger.error("Error to get public profile", { error });
@@ -40,45 +287,24 @@ export const getPublicProfileService = async (userId: string) => {
 
 export const getProfileService = async (userId: string) => {
   try {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
     });
 
-    const profile = await db.query.profiles.findFirst({
-      where: eq(profiles.userId, userId),
-    });
+    if (!user) {
+      logger.error("User not found");
 
-    if (!user || !profile) {
-      logger.error("Profile not found");
-
-      throw new Error("Profile not found");
+      throw new Error("NOT_FOUND");
     }
 
-    return {
-      userId: user.id,
-      email: user.email,
-      xp: user.xp,
-      isAdmin: user.isAdmin,
-      profile,
-    };
+    return user;
   } catch (error) {
     logger.error("Error to get profile", { error });
 
     throw error;
   }
 };
-
-interface UpdateProfileParams {
-  userId: string;
-  name?: string;
-  username?: string;
-  bio?: string;
-  avatarUrl?: string;
-  avatarPublicId?: string;
-  interests?: string;
-  goals?: string;
-  onboardingCompleted?: boolean;
-}
 
 export const updateProfileService = async ({
   userId,
@@ -87,38 +313,28 @@ export const updateProfileService = async ({
   bio,
   avatarUrl,
   avatarPublicId,
-  interests,
-  goals,
-  onboardingCompleted,
 }: UpdateProfileParams) => {
   try {
-    const existingProfile = await db.query.profiles.findFirst({
-      where: eq(profiles.userId, userId),
+    const existing = await prisma.profile.findUnique({
+      where: { userId },
     });
 
-    if (!existingProfile) {
+    if (!existing) {
       logger.error("Profile not found");
 
-      throw new Error("Profile not found");
+      throw new Error("NOT_FOUND");
     }
 
-    const [row] = await db
-      .update(profiles)
-      .set({
+    return prisma.profile.update({
+      where: { userId },
+      data: {
         name: name?.toLowerCase(),
         username: username?.toLowerCase(),
         bio: bio?.toLowerCase(),
         avatarUrl,
         avatarPublicId,
-        interests: interests?.toLowerCase(),
-        goals: goals?.toLowerCase(),
-        onboardingCompleted,
-        updatedAt: new Date(),
-      })
-      .where(eq(profiles.userId, userId))
-      .returning();
-
-    return row;
+      },
+    });
   } catch (error) {
     logger.error("Error to update profile", { error });
 
@@ -126,57 +342,42 @@ export const updateProfileService = async ({
   }
 };
 
-interface UpdatePreferencesParams {
-  userId: string;
-  learningPreference?: "beginner" | "intermediate" | "advanced";
-  videoPreference?: "short" | "medium" | "long";
-  dailyReminderEnabled?: boolean;
-  dailyReminderTime?: string;
-  streakReminderEnabled?: boolean;
-  lessonReminderEnabled?: boolean;
-  pushNotificationsEnabled?: boolean;
-  emailNotificationsEnabled?: boolean;
-}
-
-export const updatePreferencesService = async ({
+export const updateProfilePreferencesService = async ({
   userId,
-  learningPreference,
-  videoPreference,
-  dailyReminderEnabled,
+  interests,
+  goals,
   dailyReminderTime,
+  dailyReminderEnabled,
   streakReminderEnabled,
   lessonReminderEnabled,
   pushNotificationsEnabled,
   emailNotificationsEnabled,
-}: UpdatePreferencesParams) => {
+}: UpdateProfilePreferencesParams) => {
   try {
-    const existingProfile = await db.query.profiles.findFirst({
-      where: eq(profiles.userId, userId),
+    const existing = await prisma.profile.findUnique({
+      where: { userId },
     });
 
-    if (!existingProfile) {
+    if (!existing) {
       logger.error("Profile not found");
 
-      throw new Error("Profile not found");
+      throw new Error("NOT_FOUND");
     }
 
-    const [row] = await db
-      .update(profiles)
-      .set({
-        learningPreference,
-        videoPreference,
-        dailyReminderEnabled,
+    return prisma.profile.update({
+      where: { userId },
+      data: {
+        interests,
+        goals,
         dailyReminderTime,
+        dailyReminderEnabled,
         streakReminderEnabled,
         lessonReminderEnabled,
         pushNotificationsEnabled,
         emailNotificationsEnabled,
-        updatedAt: new Date(),
-      })
-      .where(eq(profiles.userId, userId))
-      .returning();
-
-    return row;
+        onboardingCompleted: true,
+      },
+    });
   } catch (error) {
     logger.error("Error to update profile preferences", { error });
 

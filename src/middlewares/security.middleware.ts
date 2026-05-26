@@ -22,18 +22,18 @@ const securityMiddleware = async (
 
     const decision = await client.protect(req, { requested: 5 });
 
-    if (decision.isDenied() && decision.reason.isBot()) {
-      logger.error("Bot request blocked", {
-        reason: "Bot request blocked",
-        error: decision.reason,
-      });
+    // if (decision.isDenied() && decision.reason.isBot()) {
+    //   logger.error("Bot request blocked", {
+    //     reason: "Bot request blocked",
+    //     error: decision.reason,
+    //   });
 
-      res.status(403).json({
-        error: "Forbidden",
-        message: "Automated requests are not allowed",
-      });
-      return;
-    }
+    //   res.status(403).json({
+    //     error: "Forbidden",
+    //     message: "Automated requests are not allowed",
+    //   });
+    //   return;
+    // }
 
     if (decision.isDenied() && decision.reason.isShield()) {
       logger.error("Shield request blocked", {
@@ -48,17 +48,17 @@ const securityMiddleware = async (
       return;
     }
 
-    if (decision.isDenied() && decision.reason.isRateLimit()) {
-      logger.error("Rate limit request blocked", {
-        reason: "Rate limit request blocked",
-        error: decision.reason,
-      });
+    // if (decision.isDenied() && decision.reason.isRateLimit()) {
+    //   logger.error("Rate limit request blocked", {
+    //     reason: "Rate limit request blocked",
+    //     error: decision.reason,
+    //   });
 
-      res
-        .status(403)
-        .json({ error: "Forbidden", message: "Too many requests" });
-      return;
-    }
+    //   res
+    //     .status(403)
+    //     .json({ error: "Forbidden", message: "Too many requests" });
+    //   return;
+    // }
 
     next();
   } catch (e) {

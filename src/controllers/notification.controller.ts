@@ -1,36 +1,36 @@
-import { Request, Response } from "express";
-import { getAuth } from "@clerk/express";
+import { Request, Response, NextFunction } from "express";
 import { logger } from "@sentry/node";
 
 import { formatValidationError } from "../utils/format";
 import {
   registerNotificationTokenService,
-  createNotificationService,
+  getUserNotificationTokensService,
+  getUserNotificationsService,
   markNotificationReadService,
   markAllNotificationsReadService,
-  getUserNotificationsService,
 } from "../services/notification.service";
 import {
-  addNotificationTokenSchema,
-  createNotificationSchema,
+  registerNotificationTokenSchema,
   notificationIdSchema,
+  getNotificationsQuerySchema,
 } from "../validations/notification.validation";
-import { userIdSchema } from "../validations/user.validation";
+import { redisKeys } from "../utils/redisKeys";
+import { setCache, deleteCache } from "../utils/cache";
 
 export const registerNotificationTokenController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     logger.info("Started registering notification token");
 
-    const validationResult = addNotificationTokenSchema.safeParse(req.body);
+    const validationResult = registerNotificationTokenSchema.safeParse({
+      ...req.body,
+      userId: req.user.id,
+    });
 
     if (!validationResult.success) {
-      logger.error("Validation failed to register notification token", {
-        error: formatValidationError(validationResult.error),
-      });
-
       return res.status(400).json({
         success: false,
         error: "Validation failed",
@@ -46,32 +46,55 @@ export const registerNotificationTokenController = async (
       platform,
     });
 
-    logger.info("Successfully registered notification token");
+    await deleteCache(redisKeys.notificationTokens(userId));
 
-    return res.json({ success: true, token: tokenInfo });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    return res.json({
+      success: true,
+      token: tokenInfo,
     });
-    return;
+  } catch (error) {
+    next(error);
   }
 };
 
-export const createNotificationController = async (
+export const getUserNotificationTokenController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    logger.info("Started creating notification");
+    const userId = req.user.id;
 
-    const validationResult = createNotificationSchema.safeParse(req.body);
+    const tokens = await getUserNotificationTokensService(userId);
+
+    await setCache(redisKeys.notificationTokens(userId), {
+      success: true,
+      tokens,
+    });
+
+    return res.json({
+      success: true,
+      tokens,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getUserNotificationsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const queryWithUser = {
+      ...req.query,
+      userId: req.user.id,
+    };
+    const validationResult =
+      getNotificationsQuerySchema.safeParse(queryWithUser);
 
     if (!validationResult.success) {
-      logger.error("Validation failed to create notification", {
-        error: formatValidationError(validationResult.error),
-      });
-
       return res.status(400).json({
         success: false,
         error: "Validation failed",
@@ -79,56 +102,35 @@ export const createNotificationController = async (
       });
     }
 
-    const {
-      userId,
-      title,
-      message,
-      type,
-      read,
-      relatedCourseId,
-      relatedLessonId,
-      relatedQuizId,
-    } = validationResult.data;
+    const params = validationResult.data;
 
-    const notification = await createNotificationService({
-      userId,
-      title,
-      message,
-      type,
-      read,
-      relatedCourseId,
-      relatedLessonId,
-      relatedQuizId,
+    const notifications = await getUserNotificationsService(params);
+
+    await setCache(redisKeys.notifications(params.userId), {
+      success: true,
+      notifications,
     });
 
-    logger.info("Successfully created notification");
-
-    return res.json({ success: true, notification });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    return res.json({
+      success: true,
+      notifications,
     });
-    return;
+  } catch (error) {
+    next(error);
   }
 };
 
 export const markNotificationReadController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    logger.info(`Started marking notification ${req.params.id} as read`);
-
     const validationResult = notificationIdSchema.safeParse({
       id: req.params.id,
     });
 
     if (!validationResult.success) {
-      logger.error("Validation failed for notification id", {
-        error: formatValidationError(validationResult.error),
-      });
-
       return res.status(400).json({
         success: false,
         error: "Validation failed",
@@ -140,109 +142,43 @@ export const markNotificationReadController = async (
 
     const notification = await markNotificationReadService(id);
 
-    logger.info(`Successfully marked notification ${id} as read`);
+    await deleteCache(redisKeys.notifications(req.user.id));
 
-    return res.json({ success: true, notification });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    return res.json({
+      success: true,
+      notification,
     });
-    return;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+
+    if (msg === "NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "Notification not found",
+      });
+    }
+
+    next(error);
   }
 };
 
 export const markAllNotificationsReadController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    const { userId: rawUserId } = getAuth(req);
-
-    logger.info(
-      `Started marking all notifications as read for user ${rawUserId}`
-    );
-
-    const validationResult = userIdSchema.safeParse({ userId: rawUserId });
-
-    if (!validationResult.success) {
-      logger.error("Validation failed to mark all notification read", {
-        error: formatValidationError(validationResult.error),
-      });
-
-      res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        message: formatValidationError(validationResult.error),
-      });
-      return;
-    }
-
-    const { userId } = validationResult.data;
+    const userId = req.user.id;
 
     const updated = await markAllNotificationsReadService(userId);
 
-    logger.info(
-      `Successfully marked all notifications as read for user ${userId}`
-    );
+    await deleteCache(redisKeys.notifications(userId));
 
-    return res.json({ success: true, updated });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    return res.json({
+      success: true,
+      updated,
     });
-    return;
-  }
-};
-
-export const getUserNotificationsController = async (
-  req: Request,
-  res: Response
-) => {
-  try {
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 10);
-    const read = req.query.read as string;
-    const type = req.query.type as string;
-
-    const { userId: rawUserId } = getAuth(req);
-
-    logger.info(`Started fetching notifications for user ${rawUserId}`);
-
-    const validationResult = userIdSchema.safeParse({ userId: rawUserId });
-
-    if (!validationResult.success) {
-      logger.error("Validation failed to get user notifications", {
-        error: formatValidationError(validationResult.error),
-      });
-
-      res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        message: formatValidationError(validationResult.error),
-      });
-      return;
-    }
-
-    const { userId } = validationResult.data;
-
-    const notifications = await getUserNotificationsService({
-      userId,
-      page,
-      limit,
-      type,
-      read: Boolean(read),
-    });
-
-    logger.info(`Successfully fetched notifications for user ${userId}`);
-
-    return res.json({ success: true, notifications });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+  } catch (error) {
+    next(error);
   }
 };

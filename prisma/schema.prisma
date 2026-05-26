@@ -1,0 +1,478 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  user
+  admin
+}
+
+enum DailyReminderTime {
+  morning
+  afternoon
+  evening
+  night
+}
+
+enum Interest {
+  ai
+  python
+  javascript
+  typescript
+}
+
+enum Goal {
+  complete_course
+  practice_daily
+  achieve_streak
+  finish_lesson
+}
+
+enum Visibility {
+  public
+  private
+}
+
+enum Status {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum Difficulty {
+  beginner
+  intermediate
+  expert
+}
+
+enum AchievementType {
+  course_completion
+  streak
+  quiz_master
+  first_login
+  milestone
+}
+
+enum AchievementRarity {
+  common
+  rare
+  epic
+  legendary
+}
+
+enum NotificationType {
+  general
+  reminder
+  achievement
+  system
+  course
+  lesson
+  quiz
+}
+
+model User {
+  id        String   @id @default(uuid())
+  clerkId   String   @unique
+  email     String   @default("")
+  role      Role     @default(user)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile            Profile?
+  enrolls            Enroll[]
+  quizAttempts       QuizAttempt[]
+  notificationTokens NotificationToken[]
+  notifications      Notification[]
+  bookmarks          Bookmark[]
+  userAchievements   UserAchievement[]
+  progresses         Progress[]
+  reviews            Review[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Profile {
+  id             String  @id @default(uuid())
+  name           String?
+  username       String?
+  bio            String?
+  avatarUrl      String?
+  avatarPublicId String?
+
+  interests Interest[]
+  goals     Goal[]
+
+  dailyReminderTime         DailyReminderTime?
+  dailyReminderEnabled      Boolean            @default(false)
+  streakReminderEnabled     Boolean            @default(false)
+  lessonReminderEnabled     Boolean            @default(false)
+  pushNotificationsEnabled  Boolean            @default(false)
+  emailNotificationsEnabled Boolean            @default(false)
+  onboardingCompleted       Boolean            @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([username])
+}
+
+model Category {
+  id            String     @id @default(uuid())
+  name          String
+  imageUrl      String
+  imagePublicId String
+  visibility    Visibility @default(private)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courses Course[]
+
+  @@index([name])
+  @@index([visibility])
+}
+
+model Course {
+  id                String  @id @default(uuid())
+  title             String
+  description       String
+  thumbnailUrl      String?
+  thumbnailPublicId String?
+
+  duration    String
+  difficulty  Difficulty @default(beginner)
+  visibility  Visibility @default(private)
+  status      Status     @default(pending)
+  aiGenerated Boolean    @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  enrolls       Enroll[]
+  lessons       Lesson[]
+  quizzes       Quiz[]
+  bookmarks     Bookmark[]
+  reviews       Review[]
+  notifications Notification[]
+
+  @@index([categoryId])
+  @@index([difficulty])
+  @@index([status])
+  @@index([visibility])
+  @@index([createdAt])
+}
+
+model Enroll {
+  id              String  @id @default(uuid())
+  completed       Boolean @default(false)
+  finishedLessons Int     @default(0)
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([completed])
+}
+
+model Lesson {
+  id                String  @id @default(uuid())
+  title             String
+  content           String
+  thumbnailUrl      String?
+  thumbnailPublicId String?
+  videoUrl          String?
+  videoPublicId     String?
+
+  duration    String
+  difficulty  Difficulty @default(beginner)
+  visibility  Visibility @default(private)
+  status      Status     @default(pending)
+  aiGenerated Boolean    @default(false)
+
+  orderIndex Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  progress      Progress[]
+  notifications Notification[]
+
+  @@index([courseId])
+  @@index([courseId, orderIndex])
+  @@index([difficulty])
+}
+
+model Progress {
+  id         String    @id @default(uuid())
+  completed  Boolean   @default(false)
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
+  @@index([completed])
+}
+
+model Quiz {
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  difficulty  Difficulty @default(beginner)
+  visibility  Visibility @default(private)
+  status      Status     @default(pending)
+  aiGenerated Boolean    @default(false)
+
+  passingScore Int @default(70)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  questions     Question[]
+  attempts      QuizAttempt[]
+  notifications Notification[]
+
+  @@index([courseId])
+  @@index([difficulty])
+  @@index([status])
+}
+
+model Question {
+  id            String  @id @default(uuid())
+  question      String
+  explanation   String?
+  correctAnswer String
+
+  difficulty  Difficulty @default(beginner)
+  visibility  Visibility @default(private)
+  status      Status     @default(pending)
+  aiGenerated Boolean    @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  options QuestionOption[]
+  answers AnswerSubmission[]
+
+  @@index([quizId])
+  @@index([difficulty])
+}
+
+model QuestionOption {
+  id        String  @id @default(uuid())
+  text      String
+  isCorrect Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  answers AnswerSubmission[]
+}
+
+model QuizAttempt {
+  id             String @id @default(uuid())
+  score          Int
+  correctAnswers Int
+  wrongAnswers   Int
+  status         Status
+
+  submittedAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  quizId String
+  quiz   Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  answers AnswerSubmission[]
+  summary QuizAttemptSummary?
+
+  @@index([userId])
+  @@index([quizId])
+  @@index([submittedAt])
+}
+
+model AnswerSubmission {
+  id        String  @id @default(uuid())
+  isCorrect Boolean
+  result    String
+
+  createdAt DateTime @default(now())
+
+  quizAttemptId String
+  quizAttempt   QuizAttempt @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  selectedOptionId String
+  selectedOption   QuestionOption @relation(fields: [selectedOptionId], references: [id], onDelete: Cascade)
+}
+
+model QuizAttemptSummary {
+  id         String @id @default(uuid())
+  strength   String
+  weaknesses String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quizAttemptId String      @unique
+  quizAttempt   QuizAttempt @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+}
+
+model Bookmark {
+  id String @id @default(uuid())
+
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+model Achievement {
+  id                 String @id @default(uuid())
+  title              String
+  description        String
+  badgeImage         String
+  badgeImagePublicId String
+
+  achievementType   AchievementType
+  achievementRarity AchievementRarity
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userAchievements UserAchievement[]
+}
+
+model UserAchievement {
+  id String @id @default(uuid())
+
+  unlockedAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+  @@index([unlockedAt])
+}
+
+model NotificationToken {
+  id       String  @id @default(uuid())
+  token    String
+  platform String
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
+  @@index([platform])
+  @@index([isActive])
+}
+
+model Notification {
+  id      String           @id @default(uuid())
+  title   String
+  message String
+  type    NotificationType
+  read    Boolean          @default(false)
+
+  relatedCourseId String?
+  relatedLessonId String?
+  relatedQuizId   String?
+
+  sentAt DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  courseId String?
+  course   Course? @relation(fields: [courseId], references: [id])
+
+  lessonId String?
+  lesson   Lesson? @relation(fields: [lessonId], references: [id])
+
+  quizId String?
+  quiz   Quiz?   @relation(fields: [quizId], references: [id])
+
+  @@index([userId])
+  @@index([type])
+  @@index([read])
+  @@index([sentAt])
+  @@index([userId, read])
+}
+
+model Review {
+  id      String @id @default(uuid())
+  message String
+  rating  Int
+
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@index([rating])
+}

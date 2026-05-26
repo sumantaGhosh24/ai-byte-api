@@ -1,16 +1,69 @@
-import { and, eq, ilike, sql } from "drizzle-orm";
 import { logger } from "@sentry/node";
 
-import { db } from "../db";
-import { categories } from "../db/schema";
+import {
+  CategoriesParams,
+  CreateCategoryParams,
+  UpdateCategoryParams,
+} from "../validations/category.validation";
+import { prisma } from "../config/db";
+import { Prisma } from "../generated/prisma/client";
 
-export const getAllCategoriesService = async () => {
+export const getPublicCategoriesService = async () => {
   try {
-    const allCategories = await db.query.categories.findMany({
-      where: eq(categories.visibility, "public"),
+    return await prisma.category.findMany({
+      where: {
+        visibility: "public",
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
+  } catch (error) {
+    logger.error("Error fetching public categories", { error });
 
-    return allCategories;
+    throw error;
+  }
+};
+
+export const getAllCategoriesService = async ({
+  page = 1,
+  limit = 10,
+  search,
+}: CategoriesParams) => {
+  try {
+    const skip = (page - 1) * limit;
+
+    const where = search
+      ? { name: { contains: search, mode: Prisma.QueryMode.insensitive } }
+      : undefined;
+
+    const [items, total] = await Promise.all([
+      prisma.category.findMany({
+        where,
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: limit,
+        skip,
+      }),
+
+      prisma.category.count({
+        where,
+      }),
+    ]);
+
+    return {
+      data: items,
+      paginations: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: skip + items.length < total,
+        nextPage: skip + items.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
+      },
+    };
   } catch (error) {
     logger.error("Error fetching all categories", { error });
 
@@ -18,64 +71,16 @@ export const getAllCategoriesService = async () => {
   }
 };
 
-interface GetPaginatedCategoriesParams {
-  page: number;
-  limit: number;
-  search?: string;
-}
-
-export const getPaginatedCategoriesService = async ({
-  page,
-  limit,
-  search,
-}: GetPaginatedCategoriesParams) => {
-  try {
-    const offset = (page - 1) * limit;
-
-    const filters = [];
-    if (search) {
-      filters.push(ilike(categories.name, `%${search}%`));
-    }
-    const whereClause = filters.length > 0 ? and(...filters) : undefined;
-
-    const data = await db.query.categories.findMany({
-      where: whereClause,
-      limit,
-      offset,
-      orderBy: (categories, { desc }) => [desc(categories.createdAt)],
-    });
-
-    const total = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(categories)
-      .where(whereClause);
-
-    return {
-      items: data,
-      paginations: {
-        page,
-        limit,
-        total: Number(total[0]?.count || 0),
-        hasMore: offset + data.length < Number(total[0]?.count || 0),
-      },
-    };
-  } catch (error) {
-    logger.error("Error fetching paginated categories", { error });
-
-    throw error;
-  }
-};
-
 export const getCategoryService = async (id: string) => {
   try {
-    const category = await db.query.categories.findFirst({
-      where: eq(categories.id, id),
+    const category = await prisma.category.findUnique({
+      where: { id },
     });
 
     if (!category) {
       logger.error("Category not found");
 
-      throw new Error("Category not found");
+      throw new Error("NOT_FOUND");
     }
 
     return category;
@@ -86,13 +91,6 @@ export const getCategoryService = async (id: string) => {
   }
 };
 
-interface CreateCategoryParams {
-  name: string;
-  imageUrl?: string;
-  imagePublicId?: string;
-  visibility: "public" | "private";
-}
-
 export const createCategoryService = async ({
   name,
   imageUrl,
@@ -100,31 +98,22 @@ export const createCategoryService = async ({
   visibility,
 }: CreateCategoryParams) => {
   try {
-    const [row] = await db
-      .insert(categories)
-      .values({
+    const category = await prisma.category.create({
+      data: {
         name: name.toLowerCase(),
         imageUrl,
         imagePublicId,
         visibility,
-      })
-      .returning();
+      },
+    });
 
-    return row;
+    return category;
   } catch (error) {
     logger.error("Error creating category", { error });
 
     throw error;
   }
 };
-
-interface UpdateCategoryParams {
-  id: string;
-  name?: string;
-  imageUrl?: string;
-  imagePublicId?: string;
-  visibility?: "public" | "private";
-}
 
 export const updateCategoryService = async ({
   id,
@@ -134,27 +123,25 @@ export const updateCategoryService = async ({
   visibility,
 }: UpdateCategoryParams) => {
   try {
-    const existingCategory = await db.query.categories.findFirst({
-      where: eq(categories.id, id),
+    const existingCategory = await prisma.category.findUnique({
+      where: { id },
     });
 
     if (!existingCategory) {
       logger.error("Category not found");
 
-      throw new Error("Category not found");
+      throw new Error("NOT_FOUND");
     }
 
-    const [category] = await db
-      .update(categories)
-      .set({
+    const category = await prisma.category.update({
+      where: { id },
+      data: {
         ...(name !== undefined ? { name: name.toLowerCase() } : {}),
         ...(imageUrl !== undefined ? { imageUrl } : {}),
         ...(imagePublicId !== undefined ? { imagePublicId } : {}),
         ...(visibility !== undefined ? { visibility } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(categories.id, id))
-      .returning();
+      },
+    });
 
     return category;
   } catch (error) {
@@ -166,20 +153,19 @@ export const updateCategoryService = async ({
 
 export const deleteCategoryService = async (id: string) => {
   try {
-    const existingCategory = await db.query.categories.findFirst({
-      where: eq(categories.id, id),
+    const existing = await prisma.category.findUnique({
+      where: { id },
     });
 
-    if (!existingCategory) {
+    if (!existing) {
       logger.error("Category not found");
 
-      throw new Error("Category not found");
+      throw new Error("NOT_FOUND");
     }
 
-    const [category] = await db
-      .delete(categories)
-      .where(eq(categories.id, id))
-      .returning();
+    const category = await prisma.category.delete({
+      where: { id },
+    });
 
     return category;
   } catch (error) {

@@ -1,21 +1,18 @@
-import { and, eq, ilike, sql } from "drizzle-orm";
 import { logger } from "@sentry/node";
 import { generateText } from "ai";
-import { z } from "zod";
 
-import { db } from "../db";
-import { courses } from "../db/schema";
+import { prisma } from "../config/db";
+import {
+  courseGenerationSchema,
+  CreateCourseParams,
+  GenerateAICourseParams,
+  GenerateCourseParams,
+  GetCoursesParams,
+  GetMyCoursesParams,
+  UpdateCourseParams,
+} from "../validations/course.validation";
+import { Prisma } from "../generated/prisma/client";
 import { geminiModel } from "../config/ai";
-
-interface GetCoursesParams {
-  page: number;
-  limit: number;
-  search?: string;
-  categoryId?: string;
-  difficulty?: "beginner" | "intermediate" | "advanced";
-  visibility?: "public" | "private";
-  status?: "pending" | "processing" | "completed" | "failed";
-}
 
 export const getAllCoursesService = async ({
   page,
@@ -27,51 +24,85 @@ export const getAllCoursesService = async ({
   status,
 }: GetCoursesParams) => {
   try {
-    const offset = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-    const filters = [];
+    const where: Prisma.CourseWhereInput = {
+      ...(search
+        ? { title: { contains: search, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(difficulty ? { difficulty } : {}),
+      ...(visibility ? { visibility } : {}),
+      ...(status ? { status } : {}),
+    };
 
-    if (search) {
-      filters.push(ilike(courses.title, `%${search}%`));
-    }
-    if (categoryId) {
-      filters.push(eq(courses.categoryId, categoryId));
-    }
-    if (difficulty) {
-      filters.push(eq(courses.difficulty, difficulty));
-    }
-    if (visibility) {
-      filters.push(eq(courses.visibility, visibility));
-    }
-    if (status) {
-      filters.push(eq(courses.status, status));
-    }
+    const [items, total] = await Promise.all([
+      prisma.course.findMany({
+        where,
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true,
+              imagePublicId: true,
+              visibility: true,
+            },
+          },
+          _count: {
+            select: {
+              lessons: true,
+              quizzes: true,
+              enrolls: true,
+              bookmarks: true,
+              reviews: true,
+            },
+          },
+          reviews: {
+            select: { rating: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
 
-    const whereClause = filters.length > 0 ? and(...filters) : undefined;
+      prisma.course.count({ where }),
+    ]);
 
-    const data = await db.query.courses.findMany({
-      where: whereClause,
-      limit,
-      offset,
-      orderBy: (courses, { desc }) => [desc(courses.createdAt)],
+    const formattedItems = items.map(course => {
+      const averageReview =
+        course.reviews.length > 0
+          ? course.reviews.reduce((acc, review) => acc + review.rating, 0) /
+            course.reviews.length
+          : 0;
+
+      return {
+        ...course,
+        lessonsCount: course._count.lessons,
+        quizzesCount: course._count.quizzes,
+        enrollsCount: course._count.enrolls,
+        bookmarksCount: course._count.bookmarks,
+        reviewsCount: course._count.reviews,
+        averageReview,
+        _count: undefined,
+        reviews: undefined,
+      };
     });
 
-    const total = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(courses)
-      .where(whereClause);
-
     return {
-      items: data,
+      items: formattedItems,
       paginations: {
         page,
         limit,
-        total: Number(total[0]?.count || 0),
-        hasMore: offset + data.length < Number(total[0]?.count || 0),
+        total,
+        hasMore: skip + formattedItems.length < total,
+        nextPage: skip + formattedItems.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
       },
     };
   } catch (error) {
-    logger.error("Error fetching paginated courses", { error });
+    logger.error("Error fetching paginated courses with relations", { error });
 
     throw error;
   }
@@ -83,69 +114,558 @@ export const getPublicCoursesService = async ({
   search,
   categoryId,
   difficulty,
-  status,
 }: GetCoursesParams) => {
   try {
-    const offset = (page - 1) * limit;
+    const skip = (page - 1) * limit;
 
-    const filters = [eq(courses.visibility, "public")];
+    const where: Prisma.CourseWhereInput = {
+      visibility: "public",
+      status: "completed",
+      ...(search
+        ? { title: { contains: search, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(difficulty ? { difficulty } : {}),
+    };
 
-    if (search) {
-      filters.push(ilike(courses.title, `%${search}%`));
-    }
-    if (categoryId) {
-      filters.push(eq(courses.categoryId, categoryId));
-    }
-    if (difficulty) {
-      filters.push(eq(courses.difficulty, difficulty));
-    }
-    if (status) {
-      filters.push(eq(courses.status, status));
-    }
+    const [items, total] = await Promise.all([
+      prisma.course.findMany({
+        where,
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true,
+              imagePublicId: true,
+              visibility: true,
+            },
+          },
+          _count: {
+            select: {
+              lessons: {
+                where: { visibility: "public" },
+              },
+              quizzes: {
+                where: { visibility: "public" },
+              },
+              enrolls: true,
+              bookmarks: true,
+              reviews: true,
+            },
+          },
+          reviews: {
+            select: { rating: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.course.count({ where }),
+    ]);
 
-    const whereClause = and(...filters);
+    const formattedItems = items.map(course => {
+      const averageReview =
+        course.reviews.length > 0
+          ? course.reviews.reduce((acc, review) => acc + review.rating, 0) /
+            course.reviews.length
+          : 0;
 
-    const data = await db.query.courses.findMany({
-      where: whereClause,
-      limit,
-      offset,
-      orderBy: (courses, { desc }) => [desc(courses.createdAt)],
+      return {
+        ...course,
+        lessonsCount: course._count.lessons,
+        quizzesCount: course._count.quizzes,
+        enrollsCount: course._count.enrolls,
+        bookmarksCount: course._count.bookmarks,
+        reviewsCount: course._count.reviews,
+        averageReview,
+        _count: undefined,
+        reviews: undefined,
+      };
     });
 
-    const total = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(courses)
-      .where(whereClause);
-
     return {
-      items: data,
+      items: formattedItems,
       paginations: {
         page,
         limit,
-        total: Number(total[0]?.count || 0),
-        hasMore: offset + data.length < Number(total[0]?.count || 0),
+        total,
+        hasMore: skip + formattedItems.length < total,
+        nextPage: skip + formattedItems.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
       },
     };
   } catch (error) {
-    logger.error("Error fetching public paginated courses", { error });
+    logger.error("Error fetching paginated public courses", { error });
 
     throw error;
   }
 };
 
-export const getCourseService = async (id: string) => {
+export const getMyCoursesService = async ({
+  userId,
+  page,
+  limit,
+  search,
+  categoryId,
+  difficulty,
+}: GetMyCoursesParams) => {
   try {
-    const course = await db.query.courses.findFirst({
-      where: eq(courses.id, id),
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.CourseWhereInput = {
+      visibility: "public",
+      status: "completed",
+      enrolls: {
+        some: { userId },
+      },
+      ...(search
+        ? { title: { contains: search, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(difficulty ? { difficulty } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.course.findMany({
+        where,
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true,
+              imagePublicId: true,
+              visibility: true,
+            },
+          },
+          enrolls: {
+            where: { userId },
+            select: { startedAt: true },
+          },
+          _count: {
+            select: {
+              lessons: {
+                where: { visibility: "public" },
+              },
+              quizzes: {
+                where: { visibility: "public" },
+              },
+              enrolls: true,
+              bookmarks: true,
+              reviews: true,
+            },
+          },
+          reviews: {
+            select: { rating: true },
+          },
+        },
+        orderBy: {
+          enrolls: { _count: "desc" },
+        },
+        skip,
+        take: limit,
+      }),
+
+      prisma.course.count({ where }),
+    ]);
+
+    const formattedItems = items.map(course => {
+      const averageReview =
+        course.reviews.length > 0
+          ? course.reviews.reduce((acc, review) => acc + review.rating, 0) /
+            course.reviews.length
+          : 0;
+
+      return {
+        ...course,
+        lessonsCount: course._count.lessons,
+        quizzesCount: course._count.quizzes,
+        enrollsCount: course._count.enrolls,
+        bookmarksCount: course._count.bookmarks,
+        reviewsCount: course._count.reviews,
+        averageReview,
+        _count: undefined,
+        reviews: undefined,
+      };
     });
+
+    return {
+      items: formattedItems,
+      paginations: {
+        page,
+        limit,
+        total,
+        hasMore: skip + formattedItems.length < total,
+        nextPage: skip + formattedItems.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
+      },
+    };
+  } catch (error) {
+    logger.error("Error fetching my courses", { error });
+
+    throw error;
+  }
+};
+
+export const getRecommendedCoursesService = async ({
+  userId,
+  page,
+  limit,
+  search,
+  categoryId,
+  difficulty,
+}: GetMyCoursesParams) => {
+  try {
+    const profile = await prisma.profile.findUnique({
+      where: { userId },
+      select: { interests: true },
+    });
+
+    const interests = profile?.interests || [];
+
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.CourseWhereInput = {
+      visibility: "public",
+      status: "completed",
+      ...(search ? { title: { contains: search, mode: "insensitive" } } : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(difficulty ? { difficulty } : {}),
+    };
+
+    const courses = await prisma.course.findMany({
+      where,
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            imageUrl: true,
+            imagePublicId: true,
+            visibility: true,
+          },
+        },
+        _count: {
+          select: {
+            enrolls: true,
+            bookmarks: true,
+            reviews: true,
+            lessons: {
+              where: { visibility: "public" },
+            },
+            quizzes: {
+              where: { visibility: "public" },
+            },
+          },
+        },
+        reviews: {
+          select: { rating: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    let filteredCourses = courses;
+
+    if (interests.length > 0) {
+      const interestsLower = interests.map(i => i.toLowerCase());
+
+      filteredCourses = courses.filter(course =>
+        interestsLower.some(interest =>
+          course.title.toLowerCase().includes(interest)
+        )
+      );
+    }
+
+    const paginatedCourses = filteredCourses.slice(skip, skip + limit);
+
+    const items = paginatedCourses.map(course => {
+      const averageReview =
+        course.reviews.length > 0
+          ? course.reviews.reduce((acc, review) => acc + review.rating, 0) /
+            course.reviews.length
+          : 0;
+
+      return {
+        ...course,
+        lessonsCount: course._count.lessons,
+        quizzesCount: course._count.quizzes,
+        enrollsCount: course._count.enrolls,
+        bookmarksCount: course._count.bookmarks,
+        reviewsCount: course._count.reviews,
+        averageReview,
+      };
+    });
+
+    return {
+      items,
+      paginations: {
+        page,
+        limit,
+        total: filteredCourses.length,
+        hasMore: skip + paginatedCourses.length < filteredCourses.length,
+        nextPage:
+          skip + paginatedCourses.length < filteredCourses.length
+            ? page + 1
+            : null,
+        previousPage: page > 1 ? page - 1 : null,
+      },
+    };
+  } catch (error) {
+    logger.error("Error fetching recommended courses", { error });
+
+    throw error;
+  }
+};
+
+export const getBookmarkCoursesService = async ({
+  userId,
+  page,
+  limit,
+  search,
+  categoryId,
+  difficulty,
+}: GetMyCoursesParams) => {
+  try {
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.CourseWhereInput = {
+      visibility: "public",
+      status: "completed",
+      bookmarks: {
+        some: { userId },
+      },
+      ...(search
+        ? { title: { contains: search, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(difficulty ? { difficulty } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.course.findMany({
+        where,
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true,
+              imagePublicId: true,
+              visibility: true,
+            },
+          },
+          _count: {
+            select: {
+              lessons: {
+                where: { visibility: "public" },
+              },
+              quizzes: {
+                where: { visibility: "public" },
+              },
+              enrolls: true,
+              bookmarks: true,
+              reviews: true,
+            },
+          },
+          reviews: {
+            select: { rating: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+
+      prisma.course.count({ where }),
+    ]);
+
+    const formattedItems = items.map(course => {
+      const averageReview =
+        course.reviews.length > 0
+          ? course.reviews.reduce((acc, review) => acc + review.rating, 0) /
+            course.reviews.length
+          : 0;
+
+      return {
+        ...course,
+        lessonsCount: course._count.lessons,
+        quizzesCount: course._count.quizzes,
+        enrollsCount: course._count.enrolls,
+        bookmarksCount: course._count.bookmarks,
+        reviewsCount: course._count.reviews,
+        averageReview,
+        _count: undefined,
+        reviews: undefined,
+      };
+    });
+
+    return {
+      items: formattedItems,
+      paginations: {
+        page,
+        limit,
+        total,
+        hasMore: skip + formattedItems.length < total,
+        nextPage: skip + formattedItems.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
+      },
+    };
+  } catch (error) {
+    logger.error("Error fetching my bookmarks", { error });
+
+    throw error;
+  }
+};
+
+export const getTrendingCoursesService = async ({
+  page,
+  limit,
+  search,
+  categoryId,
+  difficulty,
+}: Omit<GetMyCoursesParams, "userId">) => {
+  try {
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.CourseWhereInput = {
+      visibility: "public",
+      status: "completed",
+      ...(search
+        ? { title: { contains: search, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(difficulty ? { difficulty } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.course.findMany({
+        where,
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true,
+              imagePublicId: true,
+              visibility: true,
+            },
+          },
+          _count: {
+            select: {
+              lessons: {
+                where: { visibility: "public" },
+              },
+              quizzes: {
+                where: { visibility: "public" },
+              },
+              enrolls: true,
+              bookmarks: true,
+              reviews: true,
+            },
+          },
+          reviews: {
+            select: { rating: true },
+          },
+        },
+        orderBy: {
+          enrolls: { _count: "desc" },
+        },
+        skip,
+        take: limit,
+      }),
+
+      prisma.course.count({ where }),
+    ]);
+
+    const formattedItems = items.map(course => {
+      const averageReview =
+        course.reviews.length > 0
+          ? course.reviews.reduce((acc, review) => acc + review.rating, 0) /
+            course.reviews.length
+          : 0;
+
+      return {
+        ...course,
+        lessonsCount: course._count.lessons,
+        quizzesCount: course._count.quizzes,
+        enrollsCount: course._count.enrolls,
+        bookmarksCount: course._count.bookmarks,
+        reviewsCount: course._count.reviews,
+        averageReview,
+        _count: undefined,
+        reviews: undefined,
+      };
+    });
+
+    return {
+      items: formattedItems,
+      paginations: {
+        page,
+        limit,
+        total,
+        hasMore: skip + formattedItems.length < total,
+        nextPage: skip + formattedItems.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
+      },
+    };
+  } catch (error) {
+    logger.error("Error fetching trending courses", { error });
+
+    throw error;
+  }
+};
+
+export const getCourseService = async (courseId: string) => {
+  try {
+    const [course, averageReview] = await Promise.all([
+      prisma.course.findUnique({
+        where: { id: courseId },
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true,
+              imagePublicId: true,
+              visibility: true,
+            },
+          },
+          _count: {
+            select: {
+              lessons: true,
+              quizzes: true,
+              enrolls: true,
+              bookmarks: true,
+              reviews: true,
+            },
+          },
+        },
+      }),
+
+      prisma.review.aggregate({
+        where: { courseId },
+        _avg: { rating: true },
+      }),
+    ]);
 
     if (!course) {
       logger.error("Course not found");
 
-      throw new Error("Course not found");
+      throw new Error("NOT_FOUND");
     }
 
-    return course;
+    return {
+      ...course,
+      lessonsCount: course._count.lessons,
+      quizzesCount: course._count.quizzes,
+      enrollsCount: course._count.enrolls,
+      bookmarksCount: course._count.bookmarks,
+      reviewsCount: course._count.reviews,
+      averageReview: averageReview._avg.rating || 0,
+    };
   } catch (error) {
     logger.error("Error fetching course", { error });
 
@@ -153,38 +673,68 @@ export const getCourseService = async (id: string) => {
   }
 };
 
-export const getPublicCourseService = async (id: string) => {
+export const getMyCourseService = async (courseId: string) => {
   try {
-    const course = await db.query.courses.findFirst({
-      where: and(eq(courses.id, id), eq(courses.visibility, "public")),
-    });
+    const [course, averageReview] = await Promise.all([
+      prisma.course.findFirst({
+        where: {
+          id: courseId,
+          visibility: "public",
+          status: "completed",
+        },
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              imageUrl: true,
+              imagePublicId: true,
+              visibility: true,
+            },
+          },
+          _count: {
+            select: {
+              enrolls: true,
+              bookmarks: true,
+              reviews: true,
+              lessons: {
+                where: { visibility: "public" },
+              },
+              quizzes: {
+                where: { visibility: "public" },
+              },
+            },
+          },
+        },
+      }),
+
+      prisma.review.aggregate({
+        where: { courseId },
+        _avg: { rating: true },
+      }),
+    ]);
 
     if (!course) {
       logger.error("Course not found");
 
-      throw new Error("Course not found");
+      throw new Error("NOT_FOUND");
     }
 
-    return course;
+    return {
+      ...course,
+      lessonsCount: course._count.lessons,
+      quizzesCount: course._count.quizzes,
+      enrollsCount: course._count.enrolls,
+      bookmarksCount: course._count.bookmarks,
+      reviewsCount: course._count.reviews,
+      averageReview: averageReview._avg.rating || 0,
+    };
   } catch (error) {
-    logger.error("Error fetching public course", { error });
+    logger.error("Error fetching my course", { error });
 
     throw error;
   }
 };
-
-interface CreateCourseParams {
-  categoryId: string;
-  title: string;
-  description: string;
-  thumbnailUrl?: string;
-  thumbnailPublicId?: string;
-  difficulty: "beginner" | "intermediate" | "advanced";
-  duration: string;
-  visibility: "public" | "private";
-  status: "pending" | "processing" | "completed" | "failed";
-  xpReward: number;
-}
 
 export const createCourseService = async ({
   categoryId,
@@ -195,13 +745,10 @@ export const createCourseService = async ({
   difficulty,
   duration,
   visibility,
-  status,
-  xpReward,
 }: CreateCourseParams) => {
   try {
-    const [row] = await db
-      .insert(courses)
-      .values({
+    const course = await prisma.course.create({
+      data: {
         categoryId,
         title: title.toLowerCase(),
         description: description.toLowerCase(),
@@ -210,12 +757,32 @@ export const createCourseService = async ({
         difficulty,
         duration,
         visibility,
-        status,
-        xpReward,
-      })
-      .returning();
+        status: "completed",
+      },
+    });
 
-    return row;
+    if (visibility === "public") {
+      const allUsers = await prisma.user.findMany({
+        select: { id: true },
+      });
+
+      if (allUsers.length > 0) {
+        await prisma.notification.createMany({
+          data: allUsers.map(user => ({
+            userId: user.id,
+            title: "A new course has been published!",
+            message: `Course "${course.title}" is now public. Check it out!`,
+            type: "course",
+            relatedCourseId: course.id,
+            courseId: course.id,
+            read: false,
+            sentAt: new Date(),
+          })),
+        });
+      }
+    }
+
+    return course;
   } catch (error) {
     logger.error("Error creating course", { error });
 
@@ -223,98 +790,8 @@ export const createCourseService = async ({
   }
 };
 
-const courseSchema = z.object({
-  title: z.string(),
-  description: z.string(),
-  lessons: z.array(
-    z.object({
-      title: z.string(),
-      summary: z.string(),
-      quizQuestion: z.string(),
-      options: z.array(z.string()),
-      correctAnswer: z.string(),
-      explanation: z.string(),
-    })
-  ),
-});
-
-type GenerateCourseInput = {
-  topic: string;
-  difficulty: string;
-  lessonCount: number;
-};
-
-export const generateCourseWithAI = async ({
-  topic,
-  difficulty,
-  lessonCount,
-}: GenerateCourseInput) => {
-  const prompt = `
-Generate a complete learning course as STRICT JSON only.
-
-Topic: ${topic}
-Difficulty: ${difficulty}
-Lessons: ${lessonCount}
-
-Return this exact structure:
-
-{
-  "title": "string",
-  "description": "string",
-  "lessons": [
-    {
-      "title": "string",
-      "summary": "string",
-      "quizQuestion": "string",
-      "options": ["string"],
-      "correctAnswer": "string",
-      "explanation": "string"
-    }
-  ]
-}
-
-Rules:
-- No markdown
-- No code blocks
-- No explanations
-- JSON only
-- Valid parsable JSON only
-`;
-
-  const result = await generateText({
-    model: geminiModel,
-    prompt,
-  });
-
-  let parsed;
-
-  try {
-    parsed = JSON.parse(result.text);
-  } catch {
-    throw new Error("AI returned invalid JSON");
-  }
-
-  const validated = courseSchema.parse(parsed);
-
-  return validated;
-};
-
-interface UpdateCourseParams {
-  id: string;
-  categoryId?: string;
-  title?: string;
-  description?: string;
-  thumbnailUrl?: string;
-  thumbnailPublicId?: string;
-  difficulty?: "beginner" | "intermediate" | "advanced";
-  duration?: string;
-  visibility?: "public" | "private";
-  status?: "pending" | "processing" | "completed" | "failed";
-  xpReward?: number;
-}
-
 export const updateCourseService = async ({
-  id,
+  courseId,
   categoryId,
   title,
   description,
@@ -324,38 +801,53 @@ export const updateCourseService = async ({
   duration,
   visibility,
   status,
-  xpReward,
 }: UpdateCourseParams) => {
   try {
-    const existingCourse = await db.query.courses.findFirst({
-      where: eq(courses.id, id),
+    const existingCourse = await prisma.course.findUnique({
+      where: { id: courseId },
     });
 
     if (!existingCourse) {
       logger.error("Course not found");
 
-      throw new Error("Course not found");
+      throw new Error("NOT_FOUND");
     }
 
-    const [course] = await db
-      .update(courses)
-      .set({
-        ...(categoryId !== undefined ? { categoryId } : {}),
-        ...(title !== undefined ? { title: title.toLowerCase() } : {}),
-        ...(description !== undefined
-          ? { description: description.toLowerCase() }
-          : {}),
+    const course = await prisma.course.update({
+      where: { id: courseId },
+      data: {
+        categoryId,
+        difficulty,
+        visibility,
+        status,
+        title: title.toLowerCase(),
+        description: description.toLowerCase(),
         ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}),
         ...(thumbnailPublicId !== undefined ? { thumbnailPublicId } : {}),
-        ...(difficulty !== undefined ? { difficulty } : {}),
-        ...(duration !== undefined ? { duration } : {}),
-        ...(visibility !== undefined ? { visibility } : {}),
-        ...(status !== undefined ? { status } : {}),
-        ...(xpReward !== undefined ? { xpReward } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(courses.id, id))
-      .returning();
+        duration,
+      },
+    });
+
+    if (existingCourse.visibility === "private" && visibility === "public") {
+      const allUsers = await prisma.user.findMany({
+        select: { id: true },
+      });
+
+      if (allUsers.length > 0) {
+        await prisma.notification.createMany({
+          data: allUsers.map(user => ({
+            userId: user.id,
+            title: "A new course has been published!",
+            message: `Course "${course.title}" is now public. Check it out!`,
+            type: "course",
+            relatedCourseId: course.id,
+            courseId: course.id,
+            read: false,
+            sentAt: new Date(),
+          })),
+        });
+      }
+    }
 
     return course;
   } catch (error) {
@@ -367,24 +859,162 @@ export const updateCourseService = async ({
 
 export const deleteCourseService = async (id: string) => {
   try {
-    const existingCourse = await db.query.courses.findFirst({
-      where: eq(courses.id, id),
+    const existingCourse = await prisma.course.findUnique({
+      where: { id },
     });
 
     if (!existingCourse) {
       logger.error("Course not found");
 
-      throw new Error("Course not found");
+      throw new Error("NOT_FOUND");
     }
 
-    const [course] = await db
-      .delete(courses)
-      .where(eq(courses.id, id))
-      .returning();
+    const course = await prisma.course.delete({
+      where: { id },
+    });
 
     return course;
   } catch (error) {
     logger.error("Error deleting course", { error });
+
+    throw error;
+  }
+};
+
+export const generateCourseWithAIService = async ({
+  topic,
+  difficulty,
+  lessonCount,
+}: GenerateCourseParams) => {
+  try {
+    const prompt = `
+      Generate a complete production-grade learning course.
+
+      Topic: ${topic}
+
+      Difficulty: ${difficulty}
+
+      Number of lessons: ${lessonCount}
+
+      Return STRICT VALID JSON ONLY.
+
+      JSON Structure:
+
+      {
+        "title": "string",
+        "description": "string",
+
+        "lessons": [
+          {
+            "title": "string",
+            "summary": "string",
+            "content": "string",
+            "duration": "string"
+          }
+        ],
+
+        "quiz": {
+          "title": "string",
+          "description": "string",
+
+          "questions": [
+            {
+              "question": "string",
+              "explanation": "string",
+
+              "options": [
+                {
+                  "text": "string",
+                  "isCorrect": true
+                }
+              ]
+            }
+          ]
+        }
+      }
+
+      Rules:
+      - STRICT JSON ONLY
+      - No markdown
+      - No code blocks
+      - No explanations
+      - Every question must have exactly 4 options
+      - Only ONE option can be correct
+      - Generate educational content
+      - Make lesson content detailed
+      - JSON must be parsable
+    `;
+
+    const result = await generateText({
+      model: geminiModel,
+      prompt,
+      temperature: 0.7,
+    });
+
+    const cleaned = result.text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    let parsed;
+
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (error) {
+      logger.error("Invalid AI JSON", {
+        error,
+      });
+
+      throw new Error("INVALID_AI_JSON", { cause: error });
+    }
+
+    const validated = courseGenerationSchema.safeParse(parsed);
+
+    if (!validated.success) {
+      logger.error("AI schema validation failed", {
+        errors: validated.error,
+      });
+
+      throw new Error("INVALID_AI_SCHEMA");
+    }
+
+    return validated.data;
+  } catch (error) {
+    logger.error("Generate course AI failed", { error });
+
+    throw error;
+  }
+};
+
+export const generateCourseService = async ({
+  topic,
+  difficulty,
+  lessonCount,
+  categoryId,
+  thumbnailUrl,
+  thumbnailPublicId,
+}: GenerateAICourseParams) => {
+  try {
+    const course = await prisma.course.create({
+      data: {
+        categoryId,
+        title: `Generating course: ${topic}`,
+        description: "AI is generating this course.",
+        difficulty,
+        duration: `${lessonCount * 10} mins`,
+        visibility: "private",
+        status: "processing",
+        aiGenerated: true,
+        thumbnailUrl,
+        thumbnailPublicId,
+      },
+    });
+
+    return course;
+  } catch (error) {
+    logger.error("Generate course service failed", {
+      error,
+    });
 
     throw error;
   }

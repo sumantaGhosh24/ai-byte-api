@@ -1,0 +1,44 @@
+export const XP_DIFFICULTY_MULTIPLIER = {
+  BEGINNER: 1,
+  INTERMEDIATE: 1.5,
+  EXPERT: 2.2,
+} as const;
+
+export const XP_BASE = {
+  LESSON_COMPLETION: 12,
+  COURSE_COMPLETION: 80,
+
+  QUIZ_ATTEMPT: 5,
+  QUIZ_PASS: 15,
+
+  DAILY_PRACTICE: 10,
+
+  STREAK_DAILY: 5,
+
+  FIRST_LOGIN: 10,
+  ONBOARDING_COMPLETE: 15,
+
+  BOOKMARK: 2,
+} as const;
+
+export const QUIZ_SCORE_BONUS = {
+  PERFECT: 25,
+  ABOVE_90: 15,
+  ABOVE_80: 10,
+  ABOVE_70: 5,
+} as const;
+
+export const ACHIEVEMENT_XP = {
+  COMMON: 50,
+  RARE: 120,
+  EPIC: 300,
+  LEGENDARY: 800,
+} as const;
+
+export const ACHIEVEMENT_TYPE_MULTIPLIER = {
+  COURSE_COMPLETION: 1.5,
+  STREAK: 1.2,
+  QUIZ_MASTER: 1.3,
+  MILESTONE: 2,
+  FIRST_LOGIN: 0.5,
+};

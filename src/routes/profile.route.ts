@@ -1,10 +1,9 @@
 import { Router } from "express";
-import { getAuth } from "@clerk/express";
 
 import {
   getProfileController,
   updateProfileController,
-  updatePreferencesController,
+  updateProfilePreferencesController,
   getPublicProfileController,
 } from "../controllers/profile.controller";
 import { requireAuth } from "../middlewares/auth.middleware";
@@ -28,11 +27,7 @@ router.get(
   "/profile",
   requireAuth,
   generalRateLimit,
-  cacheMiddleware(req => {
-    const { userId } = getAuth(req);
-
-    return redisKeys.profile(String(userId));
-  }),
+  cacheMiddleware(req => redisKeys.profile(JSON.stringify(req.user.id))),
   getProfileController
 );
 
@@ -47,7 +42,7 @@ router.patch(
   "/profile/preferences",
   requireAuth,
   generalRateLimit,
-  updatePreferencesController
+  updateProfilePreferencesController
 );
 
 export default router;

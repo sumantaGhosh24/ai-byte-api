@@ -1,164 +1,214 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { logger } from "@sentry/node";
 
-import { formatValidationError } from "../utils/format";
 import {
   getAllLessonsService,
-  getAllPublicLessonsService,
+  getPublicLessonsService,
   getLessonService,
   getPublicLessonService,
   createLessonService,
   updateLessonService,
   deleteLessonService,
+  fixLessonOrderService,
+  generateLessonService,
 } from "../services/lesson.service";
 import {
   lessonIdSchema,
   createLessonSchema,
   updateLessonSchema,
+  fixLessonOrderSchema,
+  generateLessonSchema,
+  lessonsSchema,
 } from "../validations/lesson.validation";
-import { deleteCache, setCache } from "../utils/cache";
+import {
+  setCache,
+  deleteCache,
+  deleteManyCache,
+  getKeys,
+} from "../utils/cache";
 import { redisKeys } from "../utils/redisKeys";
+import { formatValidationError } from "../utils/format";
+import { inngest } from "../inngest/client";
 
-export const getAllLessonsController = async (req: Request, res: Response) => {
+export const getAllLessonsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 10);
-    const search = req.query.search as string;
-    const courseId = req.query.courseId as string;
-    const status = req.query.status as
-      | "pending"
-      | "processing"
-      | "completed"
-      | "failed";
-    const visibility = req.query.visibility as "public" | "private";
+    logger.info("Started fetching all lessons");
 
-    logger.info("Started fetching paginated all lessons (admin)");
+    const validationResult = lessonsSchema.safeParse({
+      ...req.query,
+      courseId: req.params.id,
+    });
+
+    if (!validationResult.success) {
+      logger.error("Validation failed while fetching all lessons", {
+        error: formatValidationError(validationResult.error),
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        message: formatValidationError(validationResult.error),
+      });
+    }
+
+    const { page, limit, search, difficulty, status, visibility, courseId } =
+      validationResult.data;
 
     const result = await getAllLessonsService({
       page,
       limit,
       search,
-      courseId,
-      status,
+      difficulty,
       visibility,
+      status,
+      courseId,
     });
 
-    logger.info("Successfully fetched paginated all lessons (admin)");
+    logger.info("Successfully fetched all lessons");
 
-    await setCache(redisKeys.lessons(JSON.stringify(req.query)), {
+    await setCache(
+      redisKeys
+        .allLessons(JSON.stringify(courseId), JSON.stringify(req.query))
+        .replace(/"/g, ""),
+      {
+        success: true,
+        result,
+      }
+    );
+
+    return res.status(200).json({
       success: true,
       result,
     });
-
-    res.json({ success: true, result });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+  } catch (error) {
+    next(error);
   }
 };
 
-export const getAllPublicLessonsController = async (
+export const getPublicLessonsController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 10);
-    const search = req.query.search as string;
-    const courseId = req.query.courseId as string;
-    const status = req.query.status as
-      | "pending"
-      | "processing"
-      | "completed"
-      | "failed";
+    logger.info("Started fetching public lessons");
 
-    logger.info("Started fetching paginated public lessons");
-
-    const result = await getAllPublicLessonsService({
-      page,
-      limit,
-      search,
-      courseId,
-      status,
+    const validationResult = lessonsSchema.safeParse({
+      ...req.query,
+      courseId: req.params.id,
     });
-
-    logger.info("Successfully fetched paginated public lessons");
-
-    await setCache(redisKeys.publicLessons(JSON.stringify(req.query)), {
-      success: true,
-      result,
-    });
-
-    res.json({ success: true, result });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
-  }
-};
-
-export const getLessonController = async (req: Request, res: Response) => {
-  try {
-    logger.info(`Started fetching lesson ${req.params.id} (admin)`);
-
-    const validationResult = lessonIdSchema.safeParse({ id: req.params.id });
 
     if (!validationResult.success) {
-      logger.error("Validation failed to get lesson", {
+      logger.error("Validation failed while fetching public lessons", {
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
+    }
+
+    const { page, limit, search, difficulty, courseId } = validationResult.data;
+
+    const result = await getPublicLessonsService({
+      page,
+      limit,
+      search,
+      difficulty,
+      courseId,
+    });
+
+    logger.info("Successfully fetched public lessons");
+
+    await setCache(
+      redisKeys
+        .lessons(JSON.stringify(courseId), JSON.stringify(req.query))
+        .replace(/"/g, ""),
+      {
+        success: true,
+        result,
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getLessonController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    logger.info(`Started fetching lesson ${req.params.id}`);
+
+    const validationResult = lessonIdSchema.safeParse(req.params);
+
+    if (!validationResult.success) {
+      logger.error("Validation failed to fetch lesson", {
+        error: formatValidationError(validationResult.error),
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: formatValidationError(validationResult.error),
+      });
     }
 
     const { id } = validationResult.data;
 
     const lesson = await getLessonService(id);
 
-    logger.info(`Successfully fetched lesson ${id} (admin)`);
+    logger.info(`Successfully fetched lesson ${id}`);
 
     await setCache(redisKeys.lesson(id), { success: true, lesson });
 
     res.json({ success: true, lesson });
   } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Lesson not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };
 
 export const getPublicLessonController = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    logger.info(`Started fetching public lesson ${req.params.id}`);
+    logger.info(`Started fetching public lesson ${req.params}`);
 
-    const validationResult = lessonIdSchema.safeParse({ id: req.params.id });
+    const validationResult = lessonIdSchema.safeParse(req.params);
 
     if (!validationResult.success) {
-      logger.error("Validation failed to get public lesson", {
+      logger.error("Validation failed to fetch public lesson", {
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
-        error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const { id } = validationResult.data;
@@ -167,19 +217,29 @@ export const getPublicLessonController = async (
 
     logger.info(`Successfully fetched public lesson ${id}`);
 
-    await setCache(redisKeys.lesson(id), { success: true, lesson });
+    await setCache(redisKeys.publicLesson(id), { success: true, lesson });
 
     res.json({ success: true, lesson });
   } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Lesson not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };
 
-export const createLessonController = async (req: Request, res: Response) => {
+export const createLessonController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     logger.info("Started creating lesson");
 
@@ -190,163 +250,178 @@ export const createLessonController = async (req: Request, res: Response) => {
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
-        error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const {
       courseId,
       title,
       content,
-      thumbnailUrl,
-      thumbnailPublicId,
-      videoUrl,
-      videoPublicId,
+      difficulty,
       duration,
       visibility,
-      status,
-      xpReward,
-      orderIndex,
+      thumbnailPublicId,
+      thumbnailUrl,
+      videoPublicId,
+      videoUrl,
     } = validationResult.data;
 
     const lesson = await createLessonService({
       courseId,
       title,
       content,
-      thumbnailUrl,
-      thumbnailPublicId,
-      videoUrl,
-      videoPublicId,
+      difficulty,
       duration,
       visibility,
-      status,
-      xpReward,
-      orderIndex,
+      thumbnailPublicId,
+      thumbnailUrl,
+      videoPublicId,
+      videoUrl,
     });
 
     logger.info("Successfully created lesson");
 
-    if (lesson) {
-      await deleteCache(redisKeys.lessons(lesson.courseId));
-      await deleteCache(redisKeys.publicLessons(lesson.courseId));
+    const keys = await getKeys("courses:*");
+    if (keys?.length) {
+      await deleteManyCache(keys);
     }
 
+    const keys2 = await getKeys(`lessons:all:${courseId}:*`);
+    if (keys2?.length) {
+      await deleteManyCache(keys2);
+    }
+
+    const keys3 = await getKeys(`lessons:${courseId}:*`);
+    if (keys3?.length) {
+      await deleteManyCache(keys3);
+    }
+
+    await deleteCache(redisKeys.course(JSON.stringify(courseId)));
+    await deleteCache(
+      redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
+    );
+
     res.status(201).json({ success: true, lesson });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+  } catch (error) {
+    next(error);
   }
 };
 
-export const updateLessonController = async (req: Request, res: Response) => {
+export const updateLessonController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     logger.info(`Started updating lesson ${req.params.id}`);
 
-    const idValidationResult = lessonIdSchema.safeParse({ id: req.params.id });
-
-    if (!idValidationResult.success) {
-      logger.error("Validation failed to update lesson (id)", {
-        error: formatValidationError(idValidationResult.error),
-      });
-
-      res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        message: formatValidationError(idValidationResult.error),
-      });
-      return;
-    }
-
-    const { id } = idValidationResult.data;
-
-    const validationResult = updateLessonSchema.safeParse(req.body);
+    const validationResult = updateLessonSchema.safeParse({
+      ...req.body,
+      lessonId: req.params.id,
+    });
 
     if (!validationResult.success) {
-      logger.error("Validation failed to update lesson (body)", {
+      logger.error("Validation failed for lesson update body", {
         error: formatValidationError(validationResult.error),
       });
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
-        error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const {
-      courseId,
-      title,
+      lessonId,
       content,
-      thumbnailUrl,
-      thumbnailPublicId,
-      videoUrl,
-      videoPublicId,
       duration,
-      visibility,
+      title,
+      courseId,
+      difficulty,
       status,
-      xpReward,
-      orderIndex,
+      thumbnailPublicId,
+      thumbnailUrl,
+      videoPublicId,
+      videoUrl,
+      visibility,
     } = validationResult.data;
 
     const lesson = await updateLessonService({
-      id,
-      courseId,
-      title,
+      lessonId,
       content,
-      thumbnailUrl,
-      thumbnailPublicId,
-      videoUrl,
-      videoPublicId,
       duration,
-      visibility,
+      title,
+      courseId,
+      difficulty,
       status,
-      xpReward,
-      orderIndex,
+      thumbnailPublicId,
+      thumbnailUrl,
+      videoPublicId,
+      videoUrl,
+      visibility,
     });
 
-    logger.info(`Successfully updated lesson ${id}`);
+    logger.info(`Successfully updated lesson ${lessonId}`);
 
-    if (lesson) {
-      await deleteCache(redisKeys.lessons(lesson.courseId));
-      await deleteCache(redisKeys.publicLessons(lesson.courseId));
-      await deleteCache(redisKeys.lesson(id));
+    const keys = await getKeys("courses:*");
+    if (keys?.length) {
+      await deleteManyCache(keys);
     }
+
+    const keys2 = await getKeys(`lessons:all:${courseId}:*`);
+    if (keys2?.length) {
+      await deleteManyCache(keys2);
+    }
+
+    const keys3 = await getKeys(`lessons:${courseId}:*`);
+    if (keys3?.length) {
+      await deleteManyCache(keys3);
+    }
+
+    await deleteCache(redisKeys.lesson(lessonId));
+    await deleteCache(redisKeys.publicLesson(lessonId));
+    await deleteCache(redisKeys.course(JSON.stringify(courseId)));
+    await deleteCache(
+      redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
+    );
 
     res.json({ success: true, lesson });
   } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Lesson not found",
+      });
+      return;
+    }
+
+    next(error);
   }
 };
 
-export const deleteLessonController = async (req: Request, res: Response) => {
+export const deleteLessonController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     logger.info(`Started deleting lesson ${req.params.id}`);
 
-    const validationResult = lessonIdSchema.safeParse({ id: req.params.id });
+    const validationResult = lessonIdSchema.safeParse(req.params);
 
     if (!validationResult.success) {
-      logger.error("Validation failed to delete lesson", {
+      logger.error("Validation failed for lesson id on delete", {
         error: formatValidationError(validationResult.error),
       });
-
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
-        error: "Validation failed",
         message: formatValidationError(validationResult.error),
       });
-      return;
     }
 
     const { id } = validationResult.data;
@@ -355,18 +430,152 @@ export const deleteLessonController = async (req: Request, res: Response) => {
 
     logger.info(`Successfully deleted lesson ${id}`);
 
-    if (lesson) {
-      await deleteCache(redisKeys.lessons(lesson.courseId));
-      await deleteCache(redisKeys.publicLessons(lesson.courseId));
-      await deleteCache(redisKeys.lesson(id));
+    const keys = await getKeys("courses:*");
+    if (keys?.length) {
+      await deleteManyCache(keys);
     }
+
+    const keys2 = await getKeys(`lessons:all:${lesson.courseId}:*`);
+    if (keys2?.length) {
+      await deleteManyCache(keys2);
+    }
+
+    const keys3 = await getKeys(`lessons:${lesson.courseId}:*`);
+    if (keys3?.length) {
+      await deleteManyCache(keys3);
+    }
+
+    await deleteCache(redisKeys.lesson(id));
+    await deleteCache(redisKeys.publicLesson(id));
+    await deleteCache(redisKeys.course(JSON.stringify(lesson.courseId)));
+    await deleteCache(
+      redisKeys.myCourse(JSON.stringify(lesson.courseId), req.user.id)
+    );
 
     res.json({ success: true, lesson });
   } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Lesson not found",
+      });
+      return;
+    }
+
+    next(error);
+  }
+};
+
+export const fixLessonOrderController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    logger.info("Started fixing lesson order");
+
+    const validationResult = fixLessonOrderSchema.safeParse({
+      ...req.body,
+      courseId: req.params.courseId,
     });
-    return;
+
+    if (!validationResult.success) {
+      logger.error("Validation failed to fix lesson order", {
+        error: formatValidationError(validationResult.error),
+      });
+      return res.status(400).json({
+        success: false,
+        message: formatValidationError(validationResult.error),
+      });
+    }
+
+    const { courseId, lessons } = validationResult.data;
+
+    const lesson = await fixLessonOrderService({ courseId, lessons });
+
+    logger.info("Successfully fixed lesson order");
+
+    const keys = await getKeys("courses:*");
+    if (keys?.length) {
+      await deleteManyCache(keys);
+    }
+
+    const keys2 = await getKeys(`lessons:all:${courseId}:*`);
+    if (keys2?.length) {
+      await deleteManyCache(keys2);
+    }
+
+    const keys3 = await getKeys(`lessons:${courseId}:*`);
+    if (keys3?.length) {
+      await deleteManyCache(keys3);
+    }
+
+    await deleteCache(redisKeys.course(JSON.stringify(courseId)));
+    await deleteCache(
+      redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
+    );
+
+    res.json({ success: true, lesson });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const generateLessonController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    logger.info("Started generating lesson with AI");
+
+    const validationResult = generateLessonSchema.safeParse({
+      ...req.body,
+      courseId: req.params.courseId,
+    });
+
+    if (!validationResult.success) {
+      logger.error("Validation failed for generating lesson with AI", {
+        error: formatValidationError(validationResult.error),
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: formatValidationError(validationResult.error),
+      });
+    }
+
+    const { topic, difficulty, courseId } = validationResult.data;
+
+    const lesson = await generateLessonService({
+      topic,
+      courseId,
+      difficulty,
+    });
+
+    logger.info("Successfully generated lesson with AI");
+
+    await inngest.send({
+      name: "lesson/generate.requested",
+      data: {
+        topic,
+        difficulty,
+        courseId,
+        lessonId: lesson.id,
+      },
+    });
+
+    return res.status(202).json({
+      success: true,
+      message: "AI lesson generation started successfully",
+      data: {
+        lesson: lesson.id,
+        status: lesson.status,
+      },
+    });
+  } catch (error: unknown) {
+    next(error);
   }
 };

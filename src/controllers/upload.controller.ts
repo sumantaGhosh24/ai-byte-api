@@ -2,22 +2,23 @@ import { Request, Response } from "express";
 import { logger } from "@sentry/node";
 
 import {
-  deleteImageService,
-  uploadImageService,
+  deleteFileService,
+  uploadFileService,
 } from "../services/upload.service";
-import { deleteImageSchema } from "../validations/upload.validation";
+import { deleteFileSchema } from "../validations/upload.validation";
 import { formatValidationError } from "../utils/format";
 
-export const uploadImageController = async (req: Request, res: Response) => {
+export const uploadFileController = async (req: Request, res: Response) => {
   try {
-    logger.info("Started uploading image");
+    logger.info("Started uploading file");
 
-    const image = await uploadImageService(req);
+    const file = await uploadFileService(req);
 
-    logger.info(`Image ${image.public_id} uploaded successfully`);
+    logger.info(`File ${file.public_id} uploaded successfully`);
 
-    res.json({ image, success: true });
+    res.json({ file, success: true });
   } catch (error: unknown) {
+    console.log(error);
     res.status(500).json({
       message: error instanceof Error ? error.message : String(error),
     });
@@ -25,14 +26,14 @@ export const uploadImageController = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteImageController = async (req: Request, res: Response) => {
+export const deleteFileController = async (req: Request, res: Response) => {
   try {
-    logger.info(`Image ${req.body.public_id} started deleting`);
+    logger.info(`File ${req.body.public_id} started deleting`);
 
-    const validationResult = deleteImageSchema.safeParse(req.body);
+    const validationResult = deleteFileSchema.safeParse(req.body);
 
     if (!validationResult.success) {
-      logger.error("Validation failed to delete image", {
+      logger.error("Validation failed to delete file", {
         error: formatValidationError(validationResult.error),
       });
 
@@ -46,9 +47,9 @@ export const deleteImageController = async (req: Request, res: Response) => {
 
     const { public_id } = validationResult.data;
 
-    const { message } = await deleteImageService(public_id);
+    const { message } = await deleteFileService(public_id);
 
-    logger.info(`Image ${public_id} deleted successfully`);
+    logger.info(`File ${public_id} deleted successfully`);
 
     res.json({ message, success: true });
   } catch (error: unknown) {

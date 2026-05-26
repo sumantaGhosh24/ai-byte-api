@@ -1,11 +1,11 @@
 import type { Request, Response } from "express";
 import { verifyWebhook } from "@clerk/backend/webhooks";
-import { eq } from "drizzle-orm";
 import { logger } from "@sentry/node";
 
-import { db } from "../db";
 import { env } from "../config/env";
-import { profiles, streaks, users } from "../db/schema";
+import { prisma } from "../config/db";
+import { deleteCache, deleteManyCache, getKeys } from "../utils/cache";
+import { redisKeys } from "../utils/redisKeys";
 
 export async function clerkWebhookHandler(req: Request, res: Response) {
   try {
@@ -40,53 +40,60 @@ export async function clerkWebhookHandler(req: Request, res: Response) {
         u.email_addresses?.find(e => e.id === u.primary_email_address_id)
           ?.email_address ?? u.email_addresses?.[0]?.email_address;
 
-      const newUser = await db
-        .insert(users)
-        .values({
+      const newUser = await prisma.user.upsert({
+        where: { clerkId: u.id },
+        update: { email },
+        create: {
           clerkId: u.id,
           email,
-          xp: 0,
-          isAdmin: false,
-        })
-        .onConflictDoUpdate({
-          target: users.clerkId,
-          set: { email, updatedAt: new Date() },
-        })
-        .returning();
-
-      await db.transaction(async tx => {
-        if (!newUser[0]) return;
-
-        await tx.insert(profiles).values({
-          userId: newUser[0]?.id,
-          onboardingCompleted: false,
-        });
-
-        await tx.insert(streaks).values({
-          userId: newUser[0]?.id,
-          currentStreak: 0,
-          longestStreak: 0,
-        });
+        },
       });
+
+      await prisma.profile.upsert({
+        where: { userId: newUser.id },
+        update: { updatedAt: new Date() },
+        create: { userId: newUser.id },
+      });
+
+      await prisma.notification.create({
+        data: {
+          userId: newUser.id,
+          title: "Welcome to AIByte 🚀",
+          message: "Start your first lesson today.",
+          type: "system",
+        },
+      });
+
+      const keys = await getKeys("users:*");
+      if (keys?.length) {
+        await deleteManyCache(keys);
+      }
+
+      await deleteCache(redisKeys.profile(newUser.id));
+      await deleteCache(redisKeys.publicProfile(newUser.id));
     }
 
     if (evt.type === "user.deleted") {
       const id = evt.data.id;
-      if (id) {
-        await db.delete(users).where(eq(users.clerkId, id));
 
-        await db.transaction(async tx => {
-          await tx.delete(profiles).where(eq(profiles.userId, id));
+      await prisma.user.delete({
+        where: {
+          clerkId: id,
+        },
+      });
 
-          await tx.delete(streaks).where(eq(streaks.userId, id));
-
-          await tx.delete(users).where(eq(users.id, id));
-        });
+      const keys = await getKeys("users:*");
+      if (keys?.length) {
+        await deleteManyCache(keys);
       }
+
+      await deleteCache(redisKeys.categories);
     }
 
     res.json({ success: true, ok: true });
   } catch (err) {
+    console.log(err);
+
     logger.error("Clerk webhook error", {
       reason: "Webhook error",
       error: err,

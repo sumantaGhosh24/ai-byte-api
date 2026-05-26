@@ -1,17 +1,40 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { logger } from "@sentry/node";
 
 import { getUsersService } from "../services/user.service";
 import { setCache } from "../utils/cache";
 import { redisKeys } from "../utils/redisKeys";
+import { formatValidationError } from "../utils/format";
+import { usersSchema } from "../validations/user.validation";
 
-export const getUsersController = async (req: Request, res: Response) => {
+export const getUsersController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 10);
-    const search = req.query.search as string;
-
     logger.info("Started fetching users");
+
+    const validationResult = usersSchema.safeParse({
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search,
+    });
+
+    if (!validationResult.success) {
+      logger.error("Validation failed to get users", {
+        error: formatValidationError(validationResult.error),
+      });
+
+      res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        message: formatValidationError(validationResult.error),
+      });
+      return;
+    }
+
+    const { page, limit, search } = validationResult.data;
 
     const users = await getUsersService({
       page,
@@ -21,17 +44,16 @@ export const getUsersController = async (req: Request, res: Response) => {
 
     logger.info("Successfully fetched users");
 
-    await setCache(redisKeys.users(JSON.stringify(req.query)), {
-      success: true,
-      users,
-    });
+    await setCache(
+      redisKeys.users(JSON.stringify(req.query)).replace(/"/g, ""),
+      {
+        success: true,
+        users,
+      }
+    );
 
     res.json({ success: true, users });
-  } catch (error: unknown) {
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    return;
+  } catch (error) {
+    next(error);
   }
 };

@@ -1,14 +1,24 @@
-import { eq } from "drizzle-orm";
+import { Request } from "express";
+import { getAuth } from "@clerk/express";
 
-import { db } from "../db";
-import { users } from "../db/schema";
+import { prisma } from "../config/db";
 
 export async function getLocalUser(clerkId: string) {
-  const [row] = await db
-    .select()
-    .from(users)
-    .where(eq(users.clerkId, clerkId))
-    .limit(1);
+  const user = await prisma.user.findUnique({
+    where: { clerkId },
+  });
 
-  return row;
+  return user;
+}
+
+export async function getCurrentUserId(req: Request) {
+  const { userId } = getAuth(req);
+
+  if (!userId) return null;
+
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+  });
+
+  return user?.id;
 }
