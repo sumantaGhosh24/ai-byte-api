@@ -38,13 +38,14 @@ export const getAllAchievementsService = async ({
 
     return {
       items,
-      pagination: {
+      paginations: {
         page,
         limit,
         total,
         hasMore: skip + items.length < total,
         nextPage: skip + items.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -173,6 +174,14 @@ export const createUserAchievementService = async ({
   achievementId,
 }: CreateUserAchievementParams) => {
   try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new Error("USER_NOT_FOUND");
+    }
+
     const existing = await prisma.userAchievement.findUnique({
       where: {
         userId_achievementId: {

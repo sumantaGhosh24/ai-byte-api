@@ -37,7 +37,10 @@ const generateLesson = inngest.createFunction(
           data: {
             courseId,
             title: aiLesson.title,
-            content: `# Summary ${aiLesson.summary} # Content ${aiLesson.content}`,
+            content: `# Summary 
+            ${aiLesson.summary} 
+            # Content 
+            ${aiLesson.content}`,
             duration: aiLesson.duration,
             difficulty,
             visibility: "private",
@@ -53,7 +56,7 @@ const generateLesson = inngest.createFunction(
         });
       });
 
-      const keys = await getKeys(`courses:all:${courseId}:*`);
+      const keys = await getKeys(`lessons:all:${courseId}:*`);
       if (keys?.length) {
         await deleteManyCache(keys);
       }

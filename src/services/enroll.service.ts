@@ -62,6 +62,7 @@ export const getAllEnrollsService = async ({
         hasMore: skip + items.length < total,
         nextPage: skip + items.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {

@@ -65,6 +65,7 @@ export const getAllQuestionsService = async ({
         hasMore: skip + items.length < total,
         nextPage: skip + items.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -129,6 +130,7 @@ export const getPublicQuestionsService = async ({
         hasMore: skip + items.length < total,
         nextPage: skip + items.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -250,13 +252,11 @@ export const createQuestionService = async ({
 
 export const updateQuestionService = async ({
   questionId,
-  quizId,
   question,
   explanation,
   options,
   difficulty,
   visibility,
-  status,
 }: UpdateQuestionParams) => {
   try {
     const existing = await prisma.question.findUnique({
@@ -271,12 +271,10 @@ export const updateQuestionService = async ({
     }
 
     let updateData: Prisma.QuestionUpdateInput = {
-      ...(quizId !== undefined ? { quizId } : {}),
       ...(question !== undefined ? { question } : {}),
       ...(explanation !== undefined ? { explanation } : {}),
       ...(difficulty !== undefined ? { difficulty } : {}),
       ...(visibility !== undefined ? { visibility } : {}),
-      ...(status !== undefined ? { status } : {}),
     };
 
     let optionsUpdate:

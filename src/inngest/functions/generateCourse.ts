@@ -42,7 +42,10 @@ const generateCourse = inngest.createFunction(
           data: aiCourse.lessons.map((lesson, index) => ({
             courseId: course.id,
             title: lesson.title,
-            content: `# Summary ${lesson.summary} # Content ${lesson.content}`,
+            content: `# Summary 
+            ${lesson.summary} 
+            # Content 
+            ${lesson.content}`,
             duration: lesson.duration,
             difficulty,
             visibility: "private",

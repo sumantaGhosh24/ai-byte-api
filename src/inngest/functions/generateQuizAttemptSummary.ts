@@ -1,6 +1,6 @@
 import { prisma } from "../../config/db";
 import { generateQuizSummaryAIService } from "../../services/quizAttempt.service";
-import { deleteCache } from "../../utils/cache";
+import { deleteCache, deleteManyCache, getKeys } from "../../utils/cache";
 import { redisKeys } from "../../utils/redisKeys";
 import { inngest } from "../client";
 
@@ -58,6 +58,23 @@ const generateQuizAttemptSummary = inngest.createFunction(
           data: { status: "completed" },
         });
       });
+
+      const keys = await getKeys(`attempts:user:${attempt.userId}*`);
+      if (keys?.length) {
+        await deleteManyCache(keys);
+      }
+
+      const keys2 = await getKeys(`attempts:${attempt.quizId}*`);
+      if (keys2?.length) {
+        await deleteManyCache(keys2);
+      }
+
+      const keys3 = await getKeys(
+        `attempts:${attempt.userId}:${attempt.quizId}*`
+      );
+      if (keys3?.length) {
+        await deleteManyCache(keys3);
+      }
 
       await deleteCache(redisKeys.attempt(attempt.id));
 

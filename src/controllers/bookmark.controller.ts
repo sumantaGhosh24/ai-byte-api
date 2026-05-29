@@ -176,6 +176,7 @@ export const createBookmarkController = async (
     res.status(201).json({
       success: true,
       bookmark,
+      message: "Bookmark created successfully",
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -251,6 +252,7 @@ export const deleteBookmarkController = async (
     res.status(201).json({
       success: true,
       bookmark,
+      message: "Bookmark removed successfully",
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);

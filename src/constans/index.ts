@@ -21,13 +21,6 @@ export const XP_BASE = {
   BOOKMARK: 2,
 } as const;
 
-export const QUIZ_SCORE_BONUS = {
-  PERFECT: 25,
-  ABOVE_90: 15,
-  ABOVE_80: 10,
-  ABOVE_70: 5,
-} as const;
-
 export const ACHIEVEMENT_XP = {
   COMMON: 50,
   RARE: 120,

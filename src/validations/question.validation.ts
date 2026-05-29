@@ -70,7 +70,6 @@ export const updateQuestionSchema = z.object({
     .string()
     .min(1, { message: "Question id is required" })
     .optional(),
-  quizId: z.string().min(1, { message: "Quiz id is required" }).optional(),
   question: z
     .string()
     .min(1, { message: "Question must be at least 1 character" })
@@ -86,7 +85,6 @@ export const updateQuestionSchema = z.object({
     .optional(),
   difficulty: questionDifficultyEnum.optional(),
   visibility: questionVisibilityEnum.optional(),
-  status: questionStatusEnum.optional(),
 });
 
 export type UpdateQuestionParams = z.infer<typeof updateQuestionSchema>;

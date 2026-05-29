@@ -1,11 +1,11 @@
 import { Router } from "express";
 
 import {
-  getAllQuizAttemptsController,
   getQuizAttemptController,
   getUserQuizAttemptsController,
   getQuizAttemptsController,
   createQuizAttemptController,
+  getUserQuizAllAttemptsController,
 } from "../controllers/quizAttempt.controller";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { generalRateLimit } from "../middlewares/rateLimit.middleware";
@@ -17,11 +17,18 @@ import { requireOnboarding } from "../middlewares/onboarding.middleware";
 const router = Router();
 
 router.get(
-  "/attempts/admin",
-  requireAdmin,
+  "/attempts",
+  requireAuth,
+  requireOnboarding,
   generalRateLimit,
-  cacheMiddleware(req => redisKeys.adminAttempts(JSON.stringify(req.query))),
-  getAllQuizAttemptsController
+  cacheMiddleware(req =>
+    redisKeys.userQuizAttempts(
+      JSON.stringify(req.query.userId),
+      JSON.stringify(req.query.quizId),
+      JSON.stringify(req.query)
+    )
+  ),
+  getUserQuizAllAttemptsController
 );
 
 router.get(
@@ -40,8 +47,7 @@ router.get(
 
 router.get(
   "/attempts/quiz/:quizId",
-  requireAuth,
-  requireOnboarding,
+  requireAdmin,
   generalRateLimit,
   cacheMiddleware(req =>
     redisKeys.attempts(

@@ -14,8 +14,6 @@ import {
   notificationIdSchema,
   getNotificationsQuerySchema,
 } from "../validations/notification.validation";
-import { redisKeys } from "../utils/redisKeys";
-import { setCache, deleteCache } from "../utils/cache";
 
 export const registerNotificationTokenController = async (
   req: Request,
@@ -46,11 +44,10 @@ export const registerNotificationTokenController = async (
       platform,
     });
 
-    await deleteCache(redisKeys.notificationTokens(userId));
-
     return res.json({
       success: true,
       token: tokenInfo,
+      message: "Notification token register successfully",
     });
   } catch (error) {
     next(error);
@@ -66,11 +63,6 @@ export const getUserNotificationTokenController = async (
     const userId = req.user.id;
 
     const tokens = await getUserNotificationTokensService(userId);
-
-    await setCache(redisKeys.notificationTokens(userId), {
-      success: true,
-      tokens,
-    });
 
     return res.json({
       success: true,
@@ -106,11 +98,6 @@ export const getUserNotificationsController = async (
 
     const notifications = await getUserNotificationsService(params);
 
-    await setCache(redisKeys.notifications(params.userId), {
-      success: true,
-      notifications,
-    });
-
     return res.json({
       success: true,
       notifications,
@@ -142,11 +129,10 @@ export const markNotificationReadController = async (
 
     const notification = await markNotificationReadService(id);
 
-    await deleteCache(redisKeys.notifications(req.user.id));
-
     return res.json({
       success: true,
       notification,
+      message: "Mark notification read successfully",
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -172,11 +158,10 @@ export const markAllNotificationsReadController = async (
 
     const updated = await markAllNotificationsReadService(userId);
 
-    await deleteCache(redisKeys.notifications(userId));
-
     return res.json({
       success: true,
       updated,
+      message: "Mark all notifications read successfully",
     });
   } catch (error) {
     next(error);

@@ -20,8 +20,7 @@ const router = Router();
 
 router.get(
   "/questions/:id",
-  requireAuth,
-  requireOnboarding,
+  requireAdmin,
   generalRateLimit,
   cacheMiddleware(req =>
     redisKeys.allQuestions(
@@ -48,8 +47,7 @@ router.get(
 
 router.get(
   "/question/:id",
-  requireAuth,
-  requireOnboarding,
+  requireAdmin,
   generalRateLimit,
   cacheMiddleware(req => redisKeys.question(JSON.stringify(req.params.id))),
   getQuestionController
@@ -69,7 +67,6 @@ router.get(
 router.post(
   "/questions",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   createQuestionController
 );
@@ -77,7 +74,6 @@ router.post(
 router.put(
   "/questions/:id",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   updateQuestionController
 );
@@ -85,7 +81,6 @@ router.put(
 router.delete(
   "/questions/:id",
   requireAdmin,
-  requireOnboarding,
   generalRateLimit,
   deleteQuestionController
 );

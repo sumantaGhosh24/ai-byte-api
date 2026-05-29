@@ -99,6 +99,7 @@ export const getAllCoursesService = async ({
         hasMore: skip + formattedItems.length < total,
         nextPage: skip + formattedItems.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -194,6 +195,7 @@ export const getPublicCoursesService = async ({
         hasMore: skip + formattedItems.length < total,
         nextPage: skip + formattedItems.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -300,6 +302,7 @@ export const getMyCoursesService = async ({
         hasMore: skip + formattedItems.length < total,
         nextPage: skip + formattedItems.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -411,6 +414,7 @@ export const getRecommendedCoursesService = async ({
             ? page + 1
             : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(filteredCourses.length / limit),
       },
     };
   } catch (error) {
@@ -511,6 +515,7 @@ export const getBookmarkCoursesService = async ({
         hasMore: skip + formattedItems.length < total,
         nextPage: skip + formattedItems.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -609,6 +614,7 @@ export const getTrendingCoursesService = async ({
         hasMore: skip + formattedItems.length < total,
         nextPage: skip + formattedItems.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {

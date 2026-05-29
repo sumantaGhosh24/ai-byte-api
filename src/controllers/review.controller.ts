@@ -178,7 +178,9 @@ export const createReviewController = async (
     await deleteCache(redisKeys.publicProfile(req.user.id));
     await deleteCache(redisKeys.myCourse(courseId, req.user.id));
 
-    res.status(201).json({ success: true, review });
+    res
+      .status(201)
+      .json({ success: true, review, message: "Review created successfully" });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -254,6 +256,7 @@ export const deleteReviewController = async (
     res.status(201).json({
       success: true,
       review,
+      message: "Review deleted successfully",
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);

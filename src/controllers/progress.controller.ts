@@ -175,7 +175,11 @@ export const updateProgressController = async (
     await deleteCache(redisKeys.profile(req.user.id));
     await deleteCache(redisKeys.publicProfile(req.user.id));
 
-    res.json({ success: true, result });
+    res.json({
+      success: true,
+      result,
+      message: "Progress updated successfully",
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
 

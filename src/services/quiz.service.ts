@@ -63,7 +63,7 @@ export const getAllQuizzesService = async ({
     });
 
     return {
-      items,
+      items: formattedItems,
       paginations: {
         page,
         limit,
@@ -71,6 +71,7 @@ export const getAllQuizzesService = async ({
         hasMore: skip + formattedItems.length < total,
         nextPage: skip + formattedItems.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -136,6 +137,7 @@ export const getPublicQuizzesService = async ({
         hasMore: skip + formattedItems.length < total,
         nextPage: skip + formattedItems.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -232,6 +234,7 @@ export const createQuizService = async ({
         difficulty,
         passingScore,
         visibility,
+        status: "completed",
       },
     });
 
@@ -277,7 +280,6 @@ export const updateQuizService = async ({
   description,
   difficulty,
   passingScore,
-  status,
   visibility,
 }: UpdateQuizParams) => {
   try {
@@ -301,7 +303,6 @@ export const updateQuizService = async ({
           : {}),
         ...(difficulty !== undefined ? { difficulty } : {}),
         ...(visibility !== undefined ? { visibility } : {}),
-        ...(status !== undefined ? { status } : {}),
         ...(passingScore !== undefined ? { passingScore } : {}),
       },
     });
@@ -374,7 +375,7 @@ export const generateQuizWithAIService = async ({
 }: GenerateQuizParams) => {
   try {
     const prompt = `
-      Generate a production-grade quiz with ${numberOfQuestions} questions.
+      Generate a production-grade quiz questions.
   
       Topic: ${topic}
   
@@ -383,6 +384,8 @@ export const generateQuizWithAIService = async ({
       Course Title: ${title}
   
       Course Description: ${description}
+
+      Number of questions: ${numberOfQuestions}
   
       STRICT JSON ONLY.
   
@@ -407,6 +410,7 @@ export const generateQuizWithAIService = async ({
       }
   
       Rules:
+      - Passing score should be 1 to 100
       - STRICT JSON ONLY
       - No markdown
       - No code blocks

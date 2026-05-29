@@ -1,18 +1,16 @@
 import { Request } from "express";
-import cloudinary from "cloudinary";
+import { v2 as cloudinary, UploadApiResponse } from "cloudinary";
 import fs from "fs";
-import { UploadedFile } from "express-fileupload";
 import { logger } from "@sentry/node";
+import { Readable } from "stream";
 
 import { env } from "../config/env";
 
-cloudinary.v2.config({
+cloudinary.config({
   cloud_name: env.CLOUD_NAME,
   api_key: env.CLOUD_API_KEY,
   api_secret: env.CLOUD_API_SECRET,
 });
-
-type CloudinaryFile = UploadedFile;
 
 export const removeTmp = (path: string) => {
   fs.unlink(path, (error: unknown) => {
@@ -20,61 +18,109 @@ export const removeTmp = (path: string) => {
   });
 };
 
-export const uploadFileService = async (req: Request) => {
+export const uploadImageService = async (req: Request) => {
   try {
-    if (!req.files || Object.keys(req.files).length === 0) {
+    if (!req.file) {
       throw {
         status: 400,
-        message: "No file was selected, please select a file.",
+        message: "No image was selected, please select a image.",
       };
     }
-    const file = req.files.file as CloudinaryFile;
+
+    const file = req.file;
     if (file.size > 5 * 1024 * 1024) {
-      removeTmp(file.tempFilePath);
       throw {
         status: 400,
-        message: "File size is too large. (required within 2mb)",
+        message: "Image size is too large. (required within 5mb)",
       };
     }
+
     if (
       file.mimetype !== "image/jpeg" &&
       file.mimetype !== "image/jpg" &&
-      file.mimetype !== "image/png" &&
+      file.mimetype !== "image/png"
+    ) {
+      throw {
+        status: 400,
+        message: "Image format is incorrect. (required jpeg, jpg or png)",
+      };
+    }
+
+    const bufferStream = Readable.from(req.file.buffer);
+
+    const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: "image", folder: "ai-byte" },
+        (error, result) => {
+          if (error) {
+            return reject(error);
+          }
+
+          if (!result) {
+            return reject(new Error("No upload result returned"));
+          }
+
+          resolve(result);
+        }
+      );
+      bufferStream.pipe(stream);
+    });
+
+    return {
+      public_id: result?.public_id,
+      url: result?.secure_url,
+    };
+  } catch (error) {
+    logger.error("Error to upload image", { error });
+
+    throw error;
+  }
+};
+
+export const uploadVideoService = async (req: Request) => {
+  try {
+    if (!req.file) {
+      throw {
+        status: 400,
+        message: "No video was selected, please select a video.",
+      };
+    }
+
+    const file = req.file;
+    if (file.size > 100 * 1024 * 1024) {
+      throw {
+        status: 400,
+        message: "Video size is too large. (required within 100mb)",
+      };
+    }
+
+    if (
       file.mimetype !== "video/mp4" &&
       file.mimetype !== "video/webm" &&
       file.mimetype !== "video/ogg"
     ) {
-      removeTmp(file.tempFilePath);
       throw {
         status: 400,
-        message: "File format is incorrect. (required jpeg or png)",
+        message: "Video format is incorrect. (required mp4, webm or ogg)",
       };
     }
 
-    return new Promise<{ public_id: string; url: string }>(
-      (resolve, reject) => {
-        cloudinary.v2.uploader.upload(
-          file.tempFilePath,
-          {
-            folder: "ai-byte",
-            resource_type: "auto",
-            upload_preset: "ml_default",
-          },
-          (error, result) => {
-            removeTmp(file.tempFilePath);
-            if (error) return reject({ status: 400, message: error.message });
-            if (!result)
-              return reject({ status: 400, message: "Something went wrong!" });
-            resolve({
-              public_id: result.public_id,
-              url: result.secure_url,
-            });
-          }
-        );
-      }
-    );
+    const fileBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+
+    const result = await cloudinary.uploader.upload(fileBase64, {
+      resource_type: "video",
+      folder: "ai-byte",
+      api_key: env.CLOUD_API_KEY,
+      api_secret: env.CLOUD_API_SECRET,
+      cloud_name: env.CLOUD_NAME,
+    });
+
+    return {
+      public_id: result?.public_id,
+      url: result?.secure_url,
+    };
   } catch (error) {
-    logger.error("Error to upload file", { error });
+    logger.error("Error to upload video", { error });
 
     throw error;
   }
@@ -82,13 +128,9 @@ export const uploadFileService = async (req: Request) => {
 
 export const deleteFileService = async (public_id: string) => {
   try {
-    return new Promise<{ message: string }>((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      cloudinary.v2.uploader.destroy(public_id, (error: any) => {
-        if (error) return reject({ status: 500, message: error.message });
-        resolve({ message: "File Deleted Successfully." });
-      });
-    });
+    await cloudinary.uploader.destroy(public_id);
+
+    return true;
   } catch (error) {
     logger.error("Error to delete file", { error });
 

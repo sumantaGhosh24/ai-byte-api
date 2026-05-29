@@ -304,7 +304,9 @@ export const createLessonController = async (
       redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
     );
 
-    res.status(201).json({ success: true, lesson });
+    res
+      .status(201)
+      .json({ success: true, lesson, message: "Lesson created successfully" });
   } catch (error) {
     next(error);
   }
@@ -388,7 +390,7 @@ export const updateLessonController = async (
       redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
     );
 
-    res.json({ success: true, lesson });
+    res.json({ success: true, lesson, message: "Lesson updated successfully" });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -452,7 +454,7 @@ export const deleteLessonController = async (
       redisKeys.myCourse(JSON.stringify(lesson.courseId), req.user.id)
     );
 
-    res.json({ success: true, lesson });
+    res.json({ success: true, lesson, message: "Lesson deleted successfully" });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -517,7 +519,11 @@ export const fixLessonOrderController = async (
       redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
     );
 
-    res.json({ success: true, lesson });
+    res.json({
+      success: true,
+      lesson,
+      message: "Lesson order fixed successfully",
+    });
   } catch (error) {
     next(error);
   }
@@ -547,12 +553,24 @@ export const generateLessonController = async (
       });
     }
 
-    const { topic, difficulty, courseId } = validationResult.data;
+    const {
+      topic,
+      difficulty,
+      courseId,
+      thumbnailPublicId,
+      thumbnailUrl,
+      videoPublicId,
+      videoUrl,
+    } = validationResult.data;
 
     const lesson = await generateLessonService({
       topic,
       courseId,
       difficulty,
+      thumbnailUrl,
+      thumbnailPublicId,
+      videoUrl,
+      videoPublicId,
     });
 
     logger.info("Successfully generated lesson with AI");
@@ -566,6 +584,11 @@ export const generateLessonController = async (
         lessonId: lesson.id,
       },
     });
+
+    const keys = await getKeys(`lessons:all:${courseId}:*`);
+    if (keys?.length) {
+      await deleteManyCache(keys);
+    }
 
     return res.status(202).json({
       success: true,

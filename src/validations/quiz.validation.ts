@@ -75,7 +75,6 @@ export const updateQuizSchema = z.object({
     .optional(),
   difficulty: quizDifficultyEnum,
   visibility: quizVisibilityEnum,
-  status: quizStatusEnum,
   passingScore: z
     .number()
     .min(1, { message: "Passing score should be a positive number" }),
@@ -95,13 +94,18 @@ export const generateQuizSchema = z.object({
     .string()
     .trim()
     .min(3, { message: "Title must be at least 3 characters" })
-    .max(200, { message: "Title must not exceed 200 characters" }),
+    .max(200, { message: "Title must not exceed 200 characters" })
+    .optional(),
   description: z
     .string()
     .trim()
     .min(10, { message: "Description must be at least 10 characters" })
-    .max(5000, { message: "Description must not exceed 5000 characters" }),
-  numberOfQuestions: z.number().default(1),
+    .max(10000, { message: "Description must not exceed 10000 characters" })
+    .optional(),
+  numberOfQuestions: z
+    .number()
+    .min(1, { message: "Number of questions must be at least 1" })
+    .max(50, { message: "Number of questions must not exceed 50" }),
 });
 
 export type GenerateAIQuizParams = z.infer<typeof generateQuizSchema>;

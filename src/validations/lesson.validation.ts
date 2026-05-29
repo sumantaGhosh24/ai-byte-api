@@ -75,7 +75,7 @@ export const updateLessonSchema = z.object({
   content: z
     .string()
     .min(10, { message: "Content must be at least 10 characters" })
-    .max(5000, { message: "Content must not exceed 5000 characters" }),
+    .max(10000, { message: "Content must not exceed 10000 characters" }),
   thumbnailUrl: z.string().optional(),
   thumbnailPublicId: z.string().optional(),
   videoUrl: z.string().optional(),
@@ -117,12 +117,14 @@ export const generateLessonSchema = z.object({
     .string()
     .trim()
     .min(3, { message: "Title must be at least 3 characters" })
-    .max(200, { message: "Title must not exceed 200 characters" }),
+    .max(200, { message: "Title must not exceed 200 characters" })
+    .optional(),
   description: z
     .string()
     .trim()
     .min(10, { message: "Description must be at least 10 characters" })
-    .max(5000, { message: "Description must not exceed 5000 characters" }),
+    .max(5000, { message: "Description must not exceed 5000 characters" })
+    .optional(),
   thumbnailUrl: z.string().min(1, { message: "Thumbnail URL is required" }),
   thumbnailPublicId: z
     .string()

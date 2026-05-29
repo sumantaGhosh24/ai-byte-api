@@ -174,7 +174,9 @@ export const createEnrollController = async (
     await deleteCache(redisKeys.profile(req.user.id));
     await deleteCache(redisKeys.publicProfile(req.user.id));
 
-    res.status(201).json({ success: true, enroll });
+    res
+      .status(201)
+      .json({ success: true, enroll, message: "Enroll created successfully" });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -246,7 +248,9 @@ export const updateEnrollController = async (
     await deleteCache(redisKeys.profile(req.user.id));
     await deleteCache(redisKeys.publicProfile(req.user.id));
 
-    res.status(201).json({ success: true, enroll });
+    res
+      .status(201)
+      .json({ success: true, enroll, message: "Enroll updated successfully" });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -310,7 +314,9 @@ export const deleteEnrollController = async (
     await deleteCache(redisKeys.profile(req.user.id));
     await deleteCache(redisKeys.publicProfile(req.user.id));
 
-    res.status(201).json({ success: true, enroll });
+    res
+      .status(201)
+      .json({ success: true, enroll, message: "Enroll updated successfully" });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
 

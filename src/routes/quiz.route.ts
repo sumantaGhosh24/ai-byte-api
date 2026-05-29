@@ -76,7 +76,7 @@ router.delete(
   deleteQuizController
 );
 
-router.delete(
+router.post(
   "/quizzes/generate/:courseId",
   requireAdmin,
   generalRateLimit,

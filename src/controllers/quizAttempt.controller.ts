@@ -3,11 +3,11 @@ import { logger } from "@sentry/node";
 
 import { formatValidationError } from "../utils/format";
 import {
-  getAllQuizAttemptsService,
   getQuizAttemptService,
   createQuizAttemptService,
   getUserQuizAttemptsService,
   getQuizAttemptsService,
+  getUserQuizAllAttemptsService,
 } from "../services/quizAttempt.service";
 import {
   quizAttemptIdSchema,
@@ -18,7 +18,7 @@ import { deleteManyCache, getKeys, setCache } from "../utils/cache";
 import { redisKeys } from "../utils/redisKeys";
 import { inngest } from "../inngest/client";
 
-export const getAllQuizAttemptsController = async (
+export const getUserQuizAllAttemptsController = async (
   req: Request,
   res: Response,
   next: NextFunction
@@ -44,7 +44,7 @@ export const getAllQuizAttemptsController = async (
 
     const { page, limit, search, userId, quizId } = validationResult.data;
 
-    const result = await getAllQuizAttemptsService({
+    const result = await getUserQuizAllAttemptsService({
       page,
       limit,
       search,
@@ -55,7 +55,13 @@ export const getAllQuizAttemptsController = async (
     logger.info("Successfully fetched all quiz attempts");
 
     await setCache(
-      redisKeys.adminAttempts(JSON.stringify(req.query)).replace(/"/g, ""),
+      redisKeys
+        .userQuizAttempts(
+          JSON.stringify(userId),
+          JSON.stringify(quizId),
+          JSON.stringify(req.query)
+        )
+        .replace(/"/g, ""),
       {
         success: true,
         result,
@@ -260,14 +266,27 @@ export const createQuizAttemptController = async (
       data: { attemptId: attempt.id },
     });
 
-    const keys = await getKeys(`attempts:user:${req.user.id}:*`);
+    const keys = await getKeys(`attempts:user:${attempt.userId}*`);
     if (keys?.length) {
       await deleteManyCache(keys);
+    }
+
+    const keys2 = await getKeys(`attempts:${attempt.quizId}*`);
+    if (keys2?.length) {
+      await deleteManyCache(keys2);
+    }
+
+    const keys3 = await getKeys(
+      `attempts:${attempt.userId}:${attempt.quizId}*`
+    );
+    if (keys3?.length) {
+      await deleteManyCache(keys3);
     }
 
     return res.status(201).json({
       success: true,
       attempt,
+      message: "Quiz attempt created successfully",
     });
   } catch (error) {
     next(error);

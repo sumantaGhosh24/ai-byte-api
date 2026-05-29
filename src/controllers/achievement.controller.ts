@@ -184,6 +184,7 @@ export const createAchievementController = async (
     res.status(201).json({
       success: true,
       achievement,
+      message: "Achievement created successfully",
     });
   } catch (error) {
     next(error);
@@ -247,6 +248,7 @@ export const updateAchievementController = async (
     res.json({
       success: true,
       achievement,
+      message: "Achievement updated successfully",
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -303,6 +305,7 @@ export const deleteAchievementController = async (
     res.json({
       success: true,
       achievement,
+      message: "Achievement deleted successfully",
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -345,18 +348,18 @@ export const getUserAchievementsController = async (
 
     const { userId } = validationResult.data;
 
-    const result = await getUserAchievementsService(userId);
+    const achievements = await getUserAchievementsService(userId);
 
     await setCache(redisKeys.userAchievements(userId), {
       success: true,
-      result,
+      achievements,
     });
 
     logger.info(`Successfully fetched achievements for user ${userId}`);
 
     res.json({
       success: true,
-      result,
+      achievements,
     });
   } catch (error) {
     next(error);
@@ -401,8 +404,27 @@ export const createUserAchievementController = async (
     res.status(201).json({
       success: true,
       userAchievement,
+      message: "User acheivement created successfully",
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message === "USER_NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "User not found",
+      });
+      return;
+    }
+
+    if (message === "NOT_FOUND") {
+      res.status(500).json({
+        success: false,
+        message: "Achievement not found",
+      });
+      return;
+    }
+
     next(error);
   }
 };
@@ -445,6 +467,7 @@ export const deleteUserAchievementController = async (
     res.json({
       success: true,
       userAchievement,
+      message: "User achievement updated successfully",
     });
   } catch (error: unknown) {
     next(error);

@@ -70,6 +70,7 @@ export const getAllLessonsService = async ({
         hasMore: skip + formattedItems.length < total,
         nextPage: skip + formattedItems.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -132,6 +133,7 @@ export const getPublicLessonsService = async ({
         hasMore: skip + formattedItems.length < total,
         nextPage: skip + formattedItems.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -253,6 +255,7 @@ export const createLessonService = async ({
         difficulty,
         visibility,
         orderIndex: course._count.lessons + 1,
+        status: "completed",
       },
     });
 

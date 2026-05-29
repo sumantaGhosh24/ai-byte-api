@@ -3,20 +3,39 @@ import { logger } from "@sentry/node";
 
 import {
   deleteFileService,
-  uploadFileService,
+  uploadImageService,
+  uploadVideoService,
 } from "../services/upload.service";
 import { deleteFileSchema } from "../validations/upload.validation";
 import { formatValidationError } from "../utils/format";
 
-export const uploadFileController = async (req: Request, res: Response) => {
+export const uploadImageController = async (req: Request, res: Response) => {
   try {
-    logger.info("Started uploading file");
+    logger.info("Started uploading image");
 
-    const file = await uploadFileService(req);
+    const file = await uploadImageService(req);
 
-    logger.info(`File ${file.public_id} uploaded successfully`);
+    logger.info(`Image ${file.public_id} uploaded successfully`);
 
-    res.json({ file, success: true });
+    res.json({ file, success: true, message: "Image uploaded successfully" });
+  } catch (error: unknown) {
+    console.log(error);
+    res.status(500).json({
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return;
+  }
+};
+
+export const uploadVideoController = async (req: Request, res: Response) => {
+  try {
+    logger.info("Started uploading video");
+
+    const file = await uploadVideoService(req);
+
+    logger.info(`Video ${file.public_id} uploaded successfully`);
+
+    res.json({ file, success: true, message: "Video uploaded successfully" });
   } catch (error: unknown) {
     console.log(error);
     res.status(500).json({
@@ -47,11 +66,11 @@ export const deleteFileController = async (req: Request, res: Response) => {
 
     const { public_id } = validationResult.data;
 
-    const { message } = await deleteFileService(public_id);
+    await deleteFileService(public_id);
 
     logger.info(`File ${public_id} deleted successfully`);
 
-    res.json({ message, success: true });
+    res.json({ message: "File deleted successfully", success: true });
   } catch (error: unknown) {
     res.status(500).json({
       message: error instanceof Error ? error.message : String(error),

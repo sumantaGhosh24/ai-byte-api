@@ -8,8 +8,6 @@ import {
 } from "../controllers/notification.controller";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { generalRateLimit } from "../middlewares/rateLimit.middleware";
-import { cacheMiddleware } from "../middlewares/cache.middleware";
-import { redisKeys } from "../utils/redisKeys";
 
 const router = Router();
 
@@ -24,9 +22,6 @@ router.get(
   "/notifications/token",
   requireAuth,
   generalRateLimit,
-  cacheMiddleware(req =>
-    redisKeys.notificationTokens(JSON.stringify(req.user.id))
-  ),
   getUserNotificationTokenController
 );
 
@@ -34,7 +29,6 @@ router.get(
   "/notifications",
   requireAuth,
   generalRateLimit,
-  cacheMiddleware(req => redisKeys.notifications(JSON.stringify(req.user.id))),
   getUserNotificationsController
 );
 

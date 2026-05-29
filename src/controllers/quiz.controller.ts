@@ -292,7 +292,9 @@ export const createQuizController = async (
       redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
     );
 
-    res.status(201).json({ success: true, quiz });
+    res
+      .status(201)
+      .json({ success: true, quiz, message: "Quiz created successfully" });
   } catch (error) {
     next(error);
   }
@@ -331,7 +333,6 @@ export const updateQuizController = async (
       difficulty,
       quizId,
       passingScore,
-      status,
       visibility,
     } = validationResult.data;
 
@@ -342,7 +343,6 @@ export const updateQuizController = async (
       description,
       difficulty,
       passingScore,
-      status,
       visibility,
     });
 
@@ -377,7 +377,7 @@ export const updateQuizController = async (
       redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
     );
 
-    res.json({ success: true, quiz });
+    res.json({ success: true, quiz, message: "Quiz updated successfully" });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -443,7 +443,7 @@ export const deleteQuizController = async (
       redisKeys.myCourse(JSON.stringify(quiz.courseId), req.user.id)
     );
 
-    res.json({ success: true, quiz });
+    res.json({ success: true, quiz, message: "Quiz deleted successfully" });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -504,6 +504,11 @@ export const generateQuizController = async (
         numberOfQuestions,
       },
     });
+
+    const keys = await getKeys(`quizzes:all:${courseId}*`);
+    if (keys?.length) {
+      await deleteManyCache(keys);
+    }
 
     return res.status(202).json({
       success: true,

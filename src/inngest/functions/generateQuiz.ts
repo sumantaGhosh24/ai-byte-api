@@ -77,7 +77,7 @@ const generateQuiz = inngest.createFunction(
         });
       });
 
-      const keys = await getKeys(`courses:all:${courseId}:*`);
+      const keys = await getKeys(`quizzes:all:${courseId}:*`);
       if (keys?.length) {
         await deleteManyCache(keys);
       }

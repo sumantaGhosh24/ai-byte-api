@@ -11,7 +11,7 @@ import { prisma } from "../config/db";
 import { Prisma } from "../generated/prisma/client";
 import { geminiModel } from "../config/ai";
 
-export const getAllQuizAttemptsService = async ({
+export const getUserQuizAllAttemptsService = async ({
   page,
   limit,
   search,
@@ -22,8 +22,8 @@ export const getAllQuizAttemptsService = async ({
     const skip = (page - 1) * limit;
 
     const where: Prisma.QuizAttemptWhereInput = {
-      ...(userId && { userId }),
-      ...(quizId && { quizId }),
+      userId,
+      quizId,
       ...(search && {
         OR: [
           {
@@ -52,28 +52,14 @@ export const getAllQuizAttemptsService = async ({
       prisma.quizAttempt.findMany({
         where,
         include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              profile: {
-                select: {
-                  name: true,
-                  username: true,
-                  avatarUrl: true,
-                },
-              },
-            },
-          },
           quiz: {
             select: {
               id: true,
               title: true,
+              difficulty: true,
             },
           },
-          _count: {
-            select: { answers: true },
-          },
+          summary: true,
         },
         orderBy: { submittedAt: "desc" },
         skip,
@@ -92,10 +78,11 @@ export const getAllQuizAttemptsService = async ({
         hasMore: skip + items.length < total,
         nextPage: skip + items.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
-    logger.error("Error fetching quiz attempts", { error });
+    logger.error("Error fetching user quiz all attempts", { error });
 
     throw error;
   }
@@ -139,6 +126,7 @@ export const getUserQuizAttemptsService = async ({
         hasMore: skip + items.length < total,
         nextPage: skip + items.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -191,6 +179,7 @@ export const getQuizAttemptsService = async ({
         hasMore: skip + items.length < total,
         nextPage: skip + items.length < total ? page + 1 : null,
         previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {

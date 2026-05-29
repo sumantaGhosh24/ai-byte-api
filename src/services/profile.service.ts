@@ -3,7 +3,6 @@ import { logger } from "@sentry/node";
 import {
   ACHIEVEMENT_TYPE_MULTIPLIER,
   ACHIEVEMENT_XP,
-  QUIZ_SCORE_BONUS,
   XP_BASE,
   XP_DIFFICULTY_MULTIPLIER,
 } from "../constans";
@@ -108,24 +107,9 @@ export const getPublicProfileService = async (userId: string) => {
 
     let quizXP = 0;
 
-    for (const attempt of userQuizAttempts) {
+    // eslint-disable-next-line no-empty-pattern
+    for (const {} of userQuizAttempts) {
       quizXP += XP_BASE.QUIZ_ATTEMPT;
-
-      const percentage = Number(attempt.percentage);
-
-      if (percentage === 100) {
-        quizXP += QUIZ_SCORE_BONUS.PERFECT;
-        quizXP += XP_BASE.QUIZ_PASS;
-      } else if (percentage >= 90) {
-        quizXP += QUIZ_SCORE_BONUS.ABOVE_90;
-        quizXP += XP_BASE.QUIZ_PASS;
-      } else if (percentage >= 80) {
-        quizXP += QUIZ_SCORE_BONUS.ABOVE_80;
-        quizXP += XP_BASE.QUIZ_PASS;
-      } else if (percentage >= 70) {
-        quizXP += QUIZ_SCORE_BONUS.ABOVE_70;
-        quizXP += XP_BASE.QUIZ_PASS;
-      }
     }
 
     const bookmarkXP = totalBookmarks * XP_BASE.BOOKMARK;

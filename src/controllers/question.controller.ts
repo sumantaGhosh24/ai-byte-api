@@ -280,7 +280,11 @@ export const createQuestionController = async (
     await deleteCache(redisKeys.quiz(JSON.stringify(quizId)));
     await deleteCache(redisKeys.publicQuiz(JSON.stringify(quizId)));
 
-    res.status(201).json({ success: true, question: newQuestion });
+    res.status(201).json({
+      success: true,
+      question: newQuestion,
+      message: "Question created successfully",
+    });
   } catch (error) {
     next(error);
   }
@@ -312,24 +316,20 @@ export const updateQuestionController = async (
     }
 
     const {
-      quizId,
       questionId,
       difficulty,
       explanation,
       options,
       question,
-      status,
       visibility,
     } = validationResult.data;
 
     const updatedQuestion = await updateQuestionService({
-      quizId,
       questionId,
       difficulty,
       explanation,
       options,
       question,
-      status,
       visibility,
     });
 
@@ -340,22 +340,28 @@ export const updateQuestionController = async (
       await deleteManyCache(keys);
     }
 
-    const keys2 = await getKeys(`questions:all:${quizId}*`);
+    const keys2 = await getKeys(`questions:all:${updatedQuestion.quizId}*`);
     if (keys2?.length) {
       await deleteManyCache(keys2);
     }
 
-    const keys3 = await getKeys(`questions:${quizId}*`);
+    const keys3 = await getKeys(`questions:${updatedQuestion.quizId}*`);
     if (keys3?.length) {
       await deleteManyCache(keys3);
     }
 
-    await deleteCache(redisKeys.quiz(JSON.stringify(quizId)));
-    await deleteCache(redisKeys.publicQuiz(JSON.stringify(quizId)));
+    await deleteCache(redisKeys.quiz(JSON.stringify(updatedQuestion.quizId)));
+    await deleteCache(
+      redisKeys.publicQuiz(JSON.stringify(updatedQuestion.quizId))
+    );
     await deleteCache(redisKeys.question(questionId as string));
     await deleteCache(redisKeys.publicQuestion(questionId as string));
 
-    res.json({ success: true, question: updatedQuestion });
+    res.json({
+      success: true,
+      question: updatedQuestion,
+      message: "Question udpated successfully",
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -419,7 +425,11 @@ export const deleteQuestionController = async (
     await deleteCache(redisKeys.question(id));
     await deleteCache(redisKeys.publicQuestion(id));
 
-    res.json({ success: true, question: deleted });
+    res.json({
+      success: true,
+      question: deleted,
+      message: "Question deleted successfully",
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 

@@ -52,7 +52,8 @@ export const redisKeys = {
   question: (id: string) => `question:${id}`,
   publicQuestion: (id: string) => `question:public:${id}`,
 
-  adminAttempts: (query: string) => `attempts:all:${query}`,
+  userQuizAttempts: (userId: string, quizId: string, query: string) =>
+    `attempts:${userId}:${quizId}:${query}`,
   userAttempts: (userId: string, query: string) =>
     `attempts:user:${userId}:${query}`,
   attempts: (quizId: string, query: string) => `attempts:${quizId}:${query}`,
@@ -61,9 +62,6 @@ export const redisKeys = {
   achievements: (query: string) => `achievements:${query}`,
   achievement: (id: string) => `achievement:${id}`,
   userAchievements: (userId: string) => `achievements:user:${userId}`,
-
-  notifications: (userId: string) => `notifications:${userId}`,
-  notificationTokens: (userId: string) => `notification:tokens:${userId}`,
 
   dashboard: "dashboard",
 };
