@@ -116,7 +116,7 @@ export const getEnrollController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Enroll not found",
       });
@@ -181,7 +181,7 @@ export const createEnrollController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Enroll not found",
       });
@@ -255,7 +255,7 @@ export const updateEnrollController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Enroll not found",
       });
@@ -321,7 +321,7 @@ export const deleteEnrollController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Enroll not found",
       });

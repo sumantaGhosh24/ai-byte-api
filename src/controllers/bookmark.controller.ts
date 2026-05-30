@@ -114,7 +114,7 @@ export const getBookmarkController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Bookmark not found",
       });
@@ -182,7 +182,7 @@ export const createBookmarkController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Course not found",
       });
@@ -258,7 +258,7 @@ export const deleteBookmarkController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Bookmark not found",
       });

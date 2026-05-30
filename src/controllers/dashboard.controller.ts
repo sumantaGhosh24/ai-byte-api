@@ -2,6 +2,8 @@ import { NextFunction, Request, Response } from "express";
 import { logger } from "@sentry/node";
 
 import { getAdminDashboardService } from "../services/dashboard.service";
+import { setCache } from "../utils/cache";
+import { redisKeys } from "../utils/redisKeys";
 
 export const getAdminDashboardController = async (
   req: Request,
@@ -14,6 +16,8 @@ export const getAdminDashboardController = async (
     const dashboard = await getAdminDashboardService();
 
     logger.info("Successfully fetched admin dashboard");
+
+    await setCache(redisKeys.dashboard, { success: true, dashboard });
 
     res.json({
       success: true,

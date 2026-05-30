@@ -13,6 +13,7 @@ import {
   UpdateLesssonParams,
 } from "../validations/lesson.validation";
 import { Prisma } from "../generated/prisma/client";
+import { inngest } from "../inngest/client";
 
 export const getAllLessonsService = async ({
   page,
@@ -260,30 +261,13 @@ export const createLessonService = async ({
     });
 
     if (visibility === "public") {
-      const course = await prisma.course.findUnique({
-        where: { id: lesson.courseId },
-        select: { id: true, title: true },
+      await inngest.send({
+        name: "lesson/published",
+        data: {
+          lessonId: lesson.id,
+          courseId: lesson.courseId,
+        },
       });
-
-      const enrolledUsers = await prisma.enroll.findMany({
-        where: { courseId: lesson.courseId },
-        select: { userId: true },
-      });
-
-      if (enrolledUsers.length > 0) {
-        await prisma.notification.createMany({
-          data: enrolledUsers.map(enroll => ({
-            userId: enroll.userId,
-            title: "A new lesson has been published!",
-            message: `A new lesson has been published in the course "${course?.title}". Check it out!`,
-            type: "lesson",
-            relatedLessonId: lesson?.id,
-            lessonId: lesson?.id,
-            read: false,
-            sentAt: new Date(),
-          })),
-        });
-      }
     }
 
     return lesson;
@@ -337,30 +321,13 @@ export const updateLessonService = async ({
     });
 
     if (existingLesson.visibility === "private" && visibility === "public") {
-      const course = await prisma.course.findUnique({
-        where: { id: lesson.courseId },
-        select: { id: true, title: true },
+      await inngest.send({
+        name: "lesson/published",
+        data: {
+          lessonId: lesson.id,
+          courseId: lesson.courseId,
+        },
       });
-
-      const enrolledUsers = await prisma.enroll.findMany({
-        where: { courseId: lesson.courseId },
-        select: { userId: true },
-      });
-
-      if (enrolledUsers.length > 0) {
-        await prisma.notification.createMany({
-          data: enrolledUsers.map(enroll => ({
-            userId: enroll.userId,
-            title: "A new lesson has been published!",
-            message: `A new lesson has been published in the course "${course?.title}". Check it out!`,
-            type: "lesson",
-            relatedLessonId: lesson?.id,
-            lessonId: lesson?.id,
-            read: false,
-            sentAt: new Date(),
-          })),
-        });
-      }
     }
 
     return lesson;

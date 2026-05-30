@@ -1,5 +1,4 @@
 import { Response, NextFunction, Request } from "express";
-import { slidingWindow } from "@arcjet/node";
 import { logger } from "@sentry/node";
 
 import aj from "../config/arcjet";
@@ -10,30 +9,26 @@ const securityMiddleware = async (
   next: NextFunction
 ) => {
   try {
-    const limit = 100;
+    const decision = await aj.protect(req);
 
-    const client = aj.withRule(
-      slidingWindow({
-        mode: "LIVE",
-        interval: "1m",
-        max: limit,
-      })
-    );
+    const bypassRoutes = ["/api/inngest"];
 
-    const decision = await client.protect(req, { requested: 5 });
+    if (bypassRoutes.some(route => req.path.startsWith(route))) {
+      return next();
+    }
 
-    // if (decision.isDenied() && decision.reason.isBot()) {
-    //   logger.error("Bot request blocked", {
-    //     reason: "Bot request blocked",
-    //     error: decision.reason,
-    //   });
+    if (decision.isDenied() && decision.reason.isBot()) {
+      logger.error("Bot request blocked", {
+        reason: "Bot request blocked",
+        error: decision.reason,
+      });
 
-    //   res.status(403).json({
-    //     error: "Forbidden",
-    //     message: "Automated requests are not allowed",
-    //   });
-    //   return;
-    // }
+      res.status(403).json({
+        error: "Forbidden",
+        message: "Automated requests are not allowed",
+      });
+      return;
+    }
 
     if (decision.isDenied() && decision.reason.isShield()) {
       logger.error("Shield request blocked", {
@@ -47,18 +42,6 @@ const securityMiddleware = async (
       });
       return;
     }
-
-    // if (decision.isDenied() && decision.reason.isRateLimit()) {
-    //   logger.error("Rate limit request blocked", {
-    //     reason: "Rate limit request blocked",
-    //     error: decision.reason,
-    //   });
-
-    //   res
-    //     .status(403)
-    //     .json({ error: "Forbidden", message: "Too many requests" });
-    //   return;
-    // }
 
     next();
   } catch (e) {

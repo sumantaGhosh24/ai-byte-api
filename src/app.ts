@@ -1,6 +1,6 @@
 import "./instrument";
 
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -33,6 +33,17 @@ import generateCourse from "./inngest/functions/generateCourse";
 import generateLesson from "./inngest/functions/generateLesson";
 import generateQuiz from "./inngest/functions/generateQuiz";
 import generateQuizAttemptSummary from "./inngest/functions/generateQuizAttemptSummary";
+import quizPublishedNotification from "./inngest/functions/quizPublishedNotification";
+import lessonPublishedNotification from "./inngest/functions/lessonPublishedNotification";
+import coursePublishedNotification from "./inngest/functions/coursePublishedNotification";
+import achievementUnlockedNotification from "./inngest/functions/achievementUnlockedNotification";
+import quizSummaryNotification from "./inngest/functions/quizSummaryNotification";
+import welcomeUserNotification from "./inngest/functions/welcomeUserNotification";
+import dailyReminder from "./inngest/functions/dailyReminder";
+import streakReminder from "./inngest/functions/streakReminder";
+import lessonReminder from "./inngest/functions/lessonReminder";
+import weeklyReminder from "./inngest/functions/weeklyReminder";
+import monthlyReminder from "./inngest/functions/monthlyReminder";
 
 const app = express();
 
@@ -84,6 +95,17 @@ app.use(
       generateLesson,
       generateQuiz,
       generateQuizAttemptSummary,
+      welcomeUserNotification,
+      achievementUnlockedNotification,
+      coursePublishedNotification,
+      lessonPublishedNotification,
+      quizPublishedNotification,
+      quizSummaryNotification,
+      dailyReminder,
+      streakReminder,
+      lessonReminder,
+      weeklyReminder,
+      monthlyReminder,
     ],
   })
 );
@@ -114,16 +136,14 @@ app.use((req, res) => {
   res.status(404).json({ message: "Route not found!" });
 });
 
-app.use((_err: unknown, _req: Request, res: Response) => {
-  const sentryId = (res as express.Response & { sentry?: string }).sentry;
+Sentry.setupExpressErrorHandler(app);
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({
     success: false,
     message: "Internal server error",
-    ...(sentryId !== undefined && { sentryId }),
   });
 });
-
-Sentry.setupExpressErrorHandler(app);
 
 export default app;

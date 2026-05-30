@@ -185,7 +185,7 @@ export const createReviewController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "COURSE_NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Course not found",
       });
@@ -193,7 +193,7 @@ export const createReviewController = async (
     }
 
     if (message === "REVIEW_ALREADY_EXISTS") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Your already reviewed this course",
       });

@@ -13,6 +13,7 @@ import {
 } from "../validations/course.validation";
 import { Prisma } from "../generated/prisma/client";
 import { geminiModel } from "../config/ai";
+import { inngest } from "../inngest/client";
 
 export const getAllCoursesService = async ({
   page,
@@ -768,24 +769,13 @@ export const createCourseService = async ({
     });
 
     if (visibility === "public") {
-      const allUsers = await prisma.user.findMany({
-        select: { id: true },
+      await inngest.send({
+        name: "course/published",
+        data: {
+          courseId: course.id,
+          title: course.title,
+        },
       });
-
-      if (allUsers.length > 0) {
-        await prisma.notification.createMany({
-          data: allUsers.map(user => ({
-            userId: user.id,
-            title: "A new course has been published!",
-            message: `Course "${course.title}" is now public. Check it out!`,
-            type: "course",
-            relatedCourseId: course.id,
-            courseId: course.id,
-            read: false,
-            sentAt: new Date(),
-          })),
-        });
-      }
     }
 
     return course;
@@ -835,24 +825,13 @@ export const updateCourseService = async ({
     });
 
     if (existingCourse.visibility === "private" && visibility === "public") {
-      const allUsers = await prisma.user.findMany({
-        select: { id: true },
+      await inngest.send({
+        name: "course/published",
+        data: {
+          courseId: course.id,
+          title: course.title,
+        },
       });
-
-      if (allUsers.length > 0) {
-        await prisma.notification.createMany({
-          data: allUsers.map(user => ({
-            userId: user.id,
-            title: "A new course has been published!",
-            message: `Course "${course.title}" is now public. Check it out!`,
-            type: "course",
-            relatedCourseId: course.id,
-            courseId: course.id,
-            read: false,
-            sentAt: new Date(),
-          })),
-        });
-      }
     }
 
     return course;

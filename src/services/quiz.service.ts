@@ -12,6 +12,7 @@ import {
 } from "../validations/quiz.validation";
 import { Prisma } from "../generated/prisma/client";
 import { geminiModel } from "../config/ai";
+import { inngest } from "../inngest/client";
 
 export const getAllQuizzesService = async ({
   page,
@@ -239,30 +240,12 @@ export const createQuizService = async ({
     });
 
     if (visibility === "public") {
-      const course = await prisma.course.findUnique({
-        where: { id: quiz.courseId },
-        select: { id: true, title: true },
+      await inngest.send({
+        name: "quiz/published",
+        data: {
+          quizId: quiz.id,
+        },
       });
-
-      const enrolledUsers = await prisma.enroll.findMany({
-        where: { courseId: quiz.courseId },
-        select: { userId: true },
-      });
-
-      if (enrolledUsers.length > 0) {
-        await prisma.notification.createMany({
-          data: enrolledUsers.map(enroll => ({
-            userId: enroll.userId,
-            title: "A new quiz has been published!",
-            message: `A new quiz has been published in the course "${course?.title}". Check it out!`,
-            type: "quiz",
-            relatedQuizId: quiz?.id,
-            quizId: quiz?.id,
-            read: false,
-            sentAt: new Date(),
-          })),
-        });
-      }
     }
 
     return quiz;
@@ -308,30 +291,12 @@ export const updateQuizService = async ({
     });
 
     if (existingQuiz.visibility === "private" && visibility === "public") {
-      const course = await prisma.course.findUnique({
-        where: { id: quiz.courseId },
-        select: { id: true, title: true },
+      await inngest.send({
+        name: "quiz/published",
+        data: {
+          quizId: quiz.id,
+        },
       });
-
-      const enrolledUsers = await prisma.enroll.findMany({
-        where: { courseId: quiz.courseId },
-        select: { userId: true },
-      });
-
-      if (enrolledUsers.length > 0) {
-        await prisma.notification.createMany({
-          data: enrolledUsers.map(enroll => ({
-            userId: enroll.userId,
-            title: "A new quiz has been published!",
-            message: `A new quiz has been published in the course "${course?.title}". Check it out!`,
-            type: "quiz",
-            relatedQuizId: quiz?.id,
-            quizId: quiz?.id,
-            read: false,
-            sentAt: new Date(),
-          })),
-        });
-      }
     }
 
     return quiz;

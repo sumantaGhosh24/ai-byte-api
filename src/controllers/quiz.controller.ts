@@ -171,7 +171,7 @@ export const getQuizController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Quiz not found",
       });
@@ -218,7 +218,7 @@ export const getPublicQuizController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Quiz not found",
       });
@@ -382,7 +382,7 @@ export const updateQuizController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Lesson not found",
       });
@@ -448,7 +448,7 @@ export const deleteQuizController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Lesson not found",
       });

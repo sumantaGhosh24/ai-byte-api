@@ -1,4 +1,4 @@
-import arcjet, { shield, detectBot, tokenBucket } from "@arcjet/node";
+import arcjet, { shield, detectBot } from "@arcjet/node";
 
 import { env } from "./env";
 
@@ -9,12 +9,6 @@ const aj = arcjet({
     detectBot({
       mode: "LIVE",
       allow: ["CATEGORY:SEARCH_ENGINE", "CATEGORY:MONITOR", "CATEGORY:PREVIEW"],
-    }),
-    tokenBucket({
-      mode: "LIVE",
-      refillRate: 5,
-      interval: 10,
-      capacity: 10,
     }),
   ],
 });

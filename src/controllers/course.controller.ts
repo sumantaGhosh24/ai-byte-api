@@ -399,7 +399,7 @@ export const getCourseController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Category not found",
       });
@@ -449,7 +449,7 @@ export const getMyCourseController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Category not found",
       });
@@ -587,7 +587,7 @@ export const updateCourseController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Category not found",
       });
@@ -640,7 +640,7 @@ export const deleteCourseController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Category not found",
       });

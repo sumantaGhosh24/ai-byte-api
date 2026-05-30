@@ -8,6 +8,7 @@ import {
   GetAchievementsParams,
   UpdateAchievementParams,
 } from "../validations/achievement.validation";
+import { inngest } from "../inngest/client";
 
 export const getAllAchievementsService = async ({
   page,
@@ -211,12 +212,14 @@ export const createUserAchievementService = async ({
       include: { achievement: true },
     });
 
-    await prisma.notification.create({
+    await inngest.send({
+      name: "achievement/unlocked",
       data: {
         userId,
-        type: "achievement",
-        title: "🏆 Achievement Unlocked",
-        message: `You unlocked "${achievement.title}" achievement.`,
+        achievementId: achievement.id,
+        achievementTitle: achievement.title,
+        achievementDescription: achievement.description,
+        achievementRarity: achievement.achievementRarity,
       },
     });
 

@@ -179,7 +179,7 @@ export const getLessonController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Lesson not found",
       });
@@ -224,7 +224,7 @@ export const getPublicLessonController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Lesson not found",
       });
@@ -395,7 +395,7 @@ export const updateLessonController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Lesson not found",
       });
@@ -459,7 +459,7 @@ export const deleteLessonController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Lesson not found",
       });

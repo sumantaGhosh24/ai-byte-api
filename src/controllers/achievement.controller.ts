@@ -123,7 +123,7 @@ export const getAchievementController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Quiz not found",
       });
@@ -254,7 +254,7 @@ export const updateAchievementController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Quiz not found",
       });
@@ -311,7 +311,7 @@ export const deleteAchievementController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Quiz not found",
       });
@@ -410,7 +410,7 @@ export const createUserAchievementController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "USER_NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "User not found",
       });
@@ -418,7 +418,7 @@ export const createUserAchievementController = async (
     }
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Achievement not found",
       });

@@ -117,7 +117,7 @@ export const getProgressController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Progress not found",
       });
@@ -184,7 +184,7 @@ export const updateProgressController = async (
     const message = error instanceof Error ? error.message : String(error);
 
     if (message === "LESSON_NOT_FOUND") {
-      res.status(500).json({
+      res.status(404).json({
         success: false,
         message: "Lesson not found",
       });

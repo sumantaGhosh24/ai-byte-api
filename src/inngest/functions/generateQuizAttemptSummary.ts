@@ -23,6 +23,9 @@ const generateQuizAttemptSummary = inngest.createFunction(
             answers: {
               include: { question: true },
             },
+            user: {
+              include: { profile: true },
+            },
           },
         });
       });
@@ -57,6 +60,17 @@ const generateQuizAttemptSummary = inngest.createFunction(
           where: { id: attempt.id },
           data: { status: "completed" },
         });
+      });
+
+      await inngest.send({
+        name: "notification/quiz-summary-generated",
+        data: {
+          userId: attempt.userId,
+          attemptId: attempt.id,
+          quizId: attempt.quizId,
+          quizTitle: attempt.quiz.title,
+          score: attempt.score,
+        },
       });
 
       const keys = await getKeys(`attempts:user:${attempt.userId}*`);

@@ -14,4 +14,10 @@ export const env = {
   CLOUD_NAME: process.env.CLOUD_NAME!,
   CLOUD_API_KEY: process.env.CLOUD_API_KEY!,
   CLOUD_API_SECRET: process.env.CLOUD_API_SECRET!,
+  SMTP_HOST: process.env.SMTP_HOST!,
+  SMTP_PORT: Number(process.env.SMTP_PORT),
+  SMTP_SECURE: process.env.SMTP_SECURE === "true",
+  SMTP_USER: process.env.SMTP_USER!,
+  SMTP_PASSWORD: process.env.SMTP_PASSWORD!,
+  MAIL_FROM: process.env.MAIL_FROM!,
 };

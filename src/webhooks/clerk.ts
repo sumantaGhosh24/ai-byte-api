@@ -6,6 +6,7 @@ import { env } from "../config/env";
 import { prisma } from "../config/db";
 import { deleteCache, deleteManyCache, getKeys } from "../utils/cache";
 import { redisKeys } from "../utils/redisKeys";
+import { inngest } from "../inngest/client";
 
 export async function clerkWebhookHandler(req: Request, res: Response) {
   try {
@@ -55,14 +56,14 @@ export async function clerkWebhookHandler(req: Request, res: Response) {
         create: { userId: newUser.id },
       });
 
-      await prisma.notification.create({
-        data: {
-          userId: newUser.id,
-          title: "Welcome to AIByte 🚀",
-          message: "Start your first lesson today.",
-          type: "system",
-        },
-      });
+      if (evt.type === "user.created") {
+        await inngest.send({
+          name: "user/welcome.requested",
+          data: {
+            userId: newUser.id,
+          },
+        });
+      }
 
       const keys = await getKeys("users:*");
       if (keys?.length) {
