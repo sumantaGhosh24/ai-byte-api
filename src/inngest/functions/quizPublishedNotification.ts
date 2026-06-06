@@ -60,8 +60,9 @@ const quizPublishedNotification = inngest.createFunction(
           title: "New Quiz Published 🎯",
           message: `A new quiz has been published in "${quiz.course.title}".`,
           type: "quiz",
-          relatedQuizId: quiz.id,
-          quizId: quiz.id,
+          metadata: {
+            quizId: quiz.id,
+          },
           read: false,
           sentAt: new Date(),
         })),

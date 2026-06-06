@@ -4,7 +4,6 @@ import { logger } from "@sentry/node";
 import { formatValidationError } from "../utils/format";
 import {
   registerNotificationTokenService,
-  getUserNotificationTokensService,
   getUserNotificationsService,
   markNotificationReadService,
   markAllNotificationsReadService,
@@ -48,25 +47,6 @@ export const registerNotificationTokenController = async (
       success: true,
       token: tokenInfo,
       message: "Notification token register successfully",
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const getUserNotificationTokenController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const userId = req.user.id;
-
-    const tokens = await getUserNotificationTokensService(userId);
-
-    return res.json({
-      success: true,
-      tokens,
     });
   } catch (error) {
     next(error);
@@ -127,7 +107,7 @@ export const markNotificationReadController = async (
 
     const { id } = validationResult.data;
 
-    const notification = await markNotificationReadService(id);
+    const notification = await markNotificationReadService(id, req.user.id);
 
     return res.json({
       success: true,

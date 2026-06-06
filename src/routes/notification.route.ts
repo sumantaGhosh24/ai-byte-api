@@ -4,7 +4,6 @@ import {
   markNotificationReadController,
   markAllNotificationsReadController,
   getUserNotificationsController,
-  getUserNotificationTokenController,
 } from "../controllers/notification.controller";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { generalRateLimit } from "../middlewares/rateLimit.middleware";
@@ -19,13 +18,6 @@ router.post(
 );
 
 router.get(
-  "/notifications/token",
-  requireAuth,
-  generalRateLimit,
-  getUserNotificationTokenController
-);
-
-router.get(
   "/notifications",
   requireAuth,
   generalRateLimit,
@@ -33,17 +25,17 @@ router.get(
 );
 
 router.patch(
-  "/notifications/:id/read",
-  requireAuth,
-  generalRateLimit,
-  markNotificationReadController
-);
-
-router.patch(
   "/notifications/read-all",
   requireAuth,
   generalRateLimit,
   markAllNotificationsReadController
+);
+
+router.patch(
+  "/notifications/:id/read",
+  requireAuth,
+  generalRateLimit,
+  markNotificationReadController
 );
 
 export default router;

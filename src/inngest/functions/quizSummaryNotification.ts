@@ -40,6 +40,7 @@ const quizSummaryNotification = inngest.createFunction(
           type: "quiz",
           metadata: {
             quizId,
+            attemptId,
           },
           sentAt: new Date(),
         },

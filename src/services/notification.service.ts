@@ -43,21 +43,6 @@ export const registerNotificationTokenService = async ({
   }
 };
 
-export const getUserNotificationTokensService = async (userId: string) => {
-  try {
-    return await prisma.notificationToken.findMany({
-      where: {
-        userId,
-        isActive: true,
-      },
-    });
-  } catch (error) {
-    logger.error("Error get user notification token", { error });
-
-    throw error;
-  }
-};
-
 export async function deactivateNotificationToken(token: string) {
   try {
     return prisma.notificationToken.updateMany({
@@ -129,10 +114,13 @@ export const getUserNotificationsService = async ({
   }
 };
 
-export const markNotificationReadService = async (id: string) => {
+export const markNotificationReadService = async (
+  id: string,
+  userId: string
+) => {
   try {
     const notification = await prisma.notification.findUnique({
-      where: { id },
+      where: { id, userId },
     });
 
     if (!notification) {

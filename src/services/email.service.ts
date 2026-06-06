@@ -39,12 +39,12 @@ export async function sendPushNotification({
   for (const chunk of chunks) {
     const tickets = await expo.sendPushNotificationsAsync(chunk);
 
-    tickets.forEach((ticket, index) => {
+    tickets.forEach(async (ticket, index) => {
       if (
         ticket.status === "error" &&
         ticket.details?.error === "DeviceNotRegistered"
       ) {
-        deactivateNotificationToken(chunk?.[index]?.to as string);
+        await deactivateNotificationToken(chunk?.[index]?.to as string);
       }
     });
   }
