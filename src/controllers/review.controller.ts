@@ -10,6 +10,7 @@ import {
   createReviewService,
   deleteReviewService,
   getAllReviewsService,
+  getCourseReviewsService,
   getUserReviewsService,
 } from "../services/review.service";
 import { formatValidationError } from "../utils/format";
@@ -122,9 +123,58 @@ export const getUserReviewsController = async (
 
     res.json({ success: true, result });
   } catch (error) {
-    logger.error("Failed to fetch user reviews", {
-      error: error instanceof Error ? error.message : String(error),
+    next(error);
+  }
+};
+
+export const getCourseReviewsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    logger.info("Started fetching course reviews");
+
+    const validationResult = getReviewsQuerySchema.safeParse({
+      ...req.query,
+      courseId: req.params.id,
     });
+
+    if (!validationResult.success) {
+      logger.error("Validation failed while fetching course reviews", {
+        error: formatValidationError(validationResult.error),
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        message: formatValidationError(validationResult.error),
+      });
+    }
+
+    const { page, limit, search, courseId } = validationResult.data;
+
+    const result = await getCourseReviewsService({
+      page,
+      limit,
+      search,
+      courseId,
+    });
+
+    logger.info("Successfully fetched course reviews");
+
+    await setCache(
+      redisKeys
+        .courseReviews(JSON.stringify(courseId), JSON.stringify(req.query))
+        .replace(/"/g, ""),
+      {
+        success: true,
+        result,
+      }
+    );
+
+    res.json({ success: true, result });
+  } catch (error) {
     next(error);
   }
 };
@@ -169,9 +219,14 @@ export const createReviewController = async (
       await deleteManyCache(keys);
     }
 
-    const keys2 = await getKeys(`reviews:${userId}:*`);
+    const keys2 = await getKeys(`reviews:user:${userId}:*`);
     if (keys2?.length) {
       await deleteManyCache(keys2);
+    }
+
+    const keys3 = await getKeys(`reviews:course:${courseId}:*`);
+    if (keys3?.length) {
+      await deleteManyCache(keys3);
     }
 
     await deleteCache(redisKeys.profile(req.user.id));
@@ -244,9 +299,14 @@ export const deleteReviewController = async (
       await deleteManyCache(keys);
     }
 
-    const keys2 = await getKeys(`reviews:${userId}:*`);
+    const keys2 = await getKeys(`reviews:user:${userId}:*`);
     if (keys2?.length) {
       await deleteManyCache(keys2);
+    }
+
+    const keys3 = await getKeys(`reviews:course:${courseId}:*`);
+    if (keys3?.length) {
+      await deleteManyCache(keys3);
     }
 
     await deleteCache(redisKeys.profile(req.user.id));

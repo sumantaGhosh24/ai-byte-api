@@ -71,12 +71,17 @@ export const getAllBookmarksService = async ({
 };
 
 export const getBookmarkService = async ({
-  bookmarkId,
   userId,
-}: DeleteBookmarkParams) => {
+  courseId,
+}: CreateBookmarkParams) => {
   try {
     const bookmark = await prisma.bookmark.findUnique({
-      where: { id: bookmarkId, userId },
+      where: {
+        userId_courseId: {
+          userId,
+          courseId,
+        },
+      },
     });
 
     if (!bookmark) {

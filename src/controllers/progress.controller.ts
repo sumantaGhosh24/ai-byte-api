@@ -171,6 +171,12 @@ export const updateProgressController = async (
       await deleteManyCache(keys);
     }
 
+    const keys3 = await getKeys(`course:my:${req.user.id}:*`);
+    if (keys3?.length) {
+      await deleteManyCache(keys3);
+    }
+
+    await deleteCache(redisKeys.enroll(req.user.id, result.courseId));
     await deleteCache(redisKeys.progress(result.id));
     await deleteCache(redisKeys.profile(req.user.id));
     await deleteCache(redisKeys.publicProfile(req.user.id));

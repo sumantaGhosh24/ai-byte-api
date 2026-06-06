@@ -125,7 +125,7 @@ router.delete(
 
 router.post(
   "/courses/generate",
-  requireOnboarding,
+  requireAdmin,
   generalRateLimit,
   generateCourseController
 );

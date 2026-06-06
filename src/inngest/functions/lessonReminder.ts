@@ -41,7 +41,7 @@ const lessonReminder = inngest.createFunction(
           userId: user.id,
           title: "Continue Your Course 🎯",
           message: "You have unfinished lessons waiting.",
-          type: "lesson",
+          type: "reminder",
           sentAt: new Date(),
         })),
       });

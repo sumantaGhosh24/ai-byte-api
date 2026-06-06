@@ -432,25 +432,21 @@ model Notification {
   title   String
   message String
   type    NotificationType
-  read    Boolean          @default(false)
 
-  relatedCourseId String?
-  relatedLessonId String?
-  relatedQuizId   String?
+  read Boolean @default(false)
+
+  metadata Json?
 
   sentAt DateTime?
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  courseId String?
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   course   Course? @relation(fields: [courseId], references: [id])
-
-  lessonId String?
+  courseId String?
   lesson   Lesson? @relation(fields: [lessonId], references: [id])
-
-  quizId String?
-  quiz   Quiz?   @relation(fields: [quizId], references: [id])
+  lessonId String?
+  quiz     Quiz?   @relation(fields: [quizId], references: [id])
+  quizId   String?
 
   @@index([userId])
   @@index([type])

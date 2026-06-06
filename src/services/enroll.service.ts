@@ -73,12 +73,17 @@ export const getAllEnrollsService = async ({
 };
 
 export const getEnrollService = async ({
-  enrollId,
   userId,
-}: DeleteEnrollParams) => {
+  courseId,
+}: CreateEnrollParams) => {
   try {
     const enroll = await prisma.enroll.findUnique({
-      where: { id: enrollId, userId },
+      where: {
+        userId_courseId: {
+          userId,
+          courseId,
+        },
+      },
     });
 
     if (!enroll) {
@@ -145,83 +150,6 @@ export const createEnrollService = async ({
     return enroll;
   } catch (error) {
     logger.error("Error creating enroll", { error });
-
-    throw error;
-  }
-};
-
-export const updateEnrollService = async ({
-  userId,
-  courseId,
-}: CreateEnrollParams) => {
-  try {
-    const enroll = await prisma.enroll.findUnique({
-      where: {
-        userId_courseId: {
-          userId,
-          courseId,
-        },
-      },
-      include: {
-        course: {
-          include: {
-            lessons: {
-              select: {
-                id: true,
-                visibility: true,
-                status: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!enroll) {
-      logger.error("Enroll not found");
-
-      throw new Error("NOT_FOUND");
-    }
-
-    const publicLessons = enroll.course.lessons.filter(
-      lesson => lesson.visibility === "public" && lesson.status === "completed"
-    );
-
-    const totalLessons = publicLessons.length;
-
-    const completedLessonsCount = await prisma.progress.count({
-      where: {
-        userId,
-        completed: true,
-        lesson: {
-          courseId,
-          visibility: "public",
-          status: "completed",
-        },
-      },
-    });
-
-    const completed = totalLessons > 0 && completedLessonsCount >= totalLessons;
-
-    const updatedEnroll = await prisma.enroll.update({
-      where: { id: enroll.id },
-      data: {
-        finishedLessons: completedLessonsCount,
-        completed,
-        finishedAt: completed ? new Date() : null,
-      },
-      include: {
-        course: {
-          include: {
-            category: true,
-          },
-        },
-      },
-    });
-
-    return updatedEnroll;
-  } catch (error) {
-    logger.error("Error updating enroll", { error });
 
     throw error;
   }

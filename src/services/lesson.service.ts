@@ -158,10 +158,7 @@ export const getLessonService = async (lessonId: string) => {
           },
         },
         _count: {
-          select: {
-            progress: true,
-            notifications: true,
-          },
+          select: { progress: true },
         },
       },
     });

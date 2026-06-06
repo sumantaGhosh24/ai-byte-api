@@ -96,11 +96,11 @@ export const getUserNotificationsController = async (
 
     const params = validationResult.data;
 
-    const notifications = await getUserNotificationsService(params);
+    const result = await getUserNotificationsService(params);
 
     return res.json({
       success: true,
-      notifications,
+      result,
     });
   } catch (error) {
     next(error);

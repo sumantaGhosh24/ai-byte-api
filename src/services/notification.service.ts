@@ -37,7 +37,7 @@ export const registerNotificationTokenService = async ({
       },
     });
   } catch (error) {
-    logger.error("Error in registerNotificationTokenService", { error });
+    logger.error("Error register notification token", { error });
 
     throw error;
   }
@@ -52,11 +52,28 @@ export const getUserNotificationTokensService = async (userId: string) => {
       },
     });
   } catch (error) {
-    logger.error("Error in getUserNotificationTokensService", { error });
+    logger.error("Error get user notification token", { error });
 
     throw error;
   }
 };
+
+export async function deactivateNotificationToken(token: string) {
+  try {
+    return prisma.notificationToken.updateMany({
+      where: {
+        token,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+  } catch (error) {
+    logger.error("Error deactivate notification token", { error });
+
+    throw error;
+  }
+}
 
 export const getUserNotificationsService = async ({
   userId,
@@ -72,7 +89,7 @@ export const getUserNotificationsService = async ({
       ...(type && { type }),
     };
 
-    const [items, total] = await Promise.all([
+    const [items, total, unreadCount] = await Promise.all([
       prisma.notification.findMany({
         where,
         orderBy: { sentAt: "desc" },
@@ -83,10 +100,18 @@ export const getUserNotificationsService = async ({
       prisma.notification.count({
         where,
       }),
+
+      prisma.notification.count({
+        where: {
+          userId,
+          read: false,
+        },
+      }),
     ]);
 
     return {
       items,
+      unreadCount,
       paginations: {
         page,
         limit,
@@ -98,7 +123,7 @@ export const getUserNotificationsService = async ({
       },
     };
   } catch (error) {
-    logger.error("Error in getUserNotificationsService", { error });
+    logger.error("Error get user notifications", { error });
 
     throw error;
   }
@@ -119,7 +144,7 @@ export const markNotificationReadService = async (id: string) => {
       data: { read: true },
     });
   } catch (error) {
-    logger.error("Error in markNotificationReadService", { error });
+    logger.error("Error marking notification read", { error });
 
     throw error;
   }

@@ -44,6 +44,9 @@ const achievementUnlockedNotification = inngest.createFunction(
           type: "achievement",
           title: "🏆 Achievement Unlocked",
           message: `You unlocked "${achievementTitle}" achievement.`,
+          metadata: {
+            achievementId,
+          },
           sentAt: new Date(),
         },
       });

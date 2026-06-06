@@ -30,9 +30,15 @@ router.get(
 
 router.get(
   "/bookmark/:id",
+  requireAuth,
   requireOnboarding,
   generalRateLimit,
-  cacheMiddleware(req => redisKeys.bookmark(JSON.stringify(req.params.id))),
+  cacheMiddleware(req =>
+    redisKeys.bookmark(
+      JSON.stringify(req.user.id),
+      JSON.stringify(req.params.id)
+    )
+  ),
   getBookmarkController
 );
 

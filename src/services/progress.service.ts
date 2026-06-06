@@ -75,7 +75,12 @@ export const getProgressService = async ({
 }: GetProgressParams) => {
   try {
     const progress = await prisma.progress.findUnique({
-      where: { id: lessonId, userId },
+      where: {
+        userId_lessonId: {
+          userId,
+          lessonId,
+        },
+      },
     });
 
     if (!progress) {
@@ -155,7 +160,7 @@ export const updateProgressService = async ({
       where: { courseId: lesson.courseId },
     });
 
-    await prisma.enroll.upsert({
+    const enroll = await prisma.enroll.upsert({
       where: {
         userId_courseId: {
           userId,
@@ -176,7 +181,7 @@ export const updateProgressService = async ({
       },
     });
 
-    return progress;
+    return { ...progress, enrollId: enroll.id, courseId: enroll.courseId };
   } catch (error) {
     logger.error("Error update lesson progress", { error });
 

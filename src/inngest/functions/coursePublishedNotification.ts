@@ -37,8 +37,9 @@ const coursePublishedNotification = inngest.createFunction(
           title: "New Course Available 🚀",
           message: `Course "${title}" is now available.`,
           type: "course",
-          relatedCourseId: courseId,
-          courseId,
+          metadata: {
+            courseId,
+          },
           sentAt: new Date(),
         })),
       });

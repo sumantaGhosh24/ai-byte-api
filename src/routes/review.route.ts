@@ -4,6 +4,7 @@ import {
   createReviewController,
   deleteReviewController,
   getAllReviewsController,
+  getCourseReviewsController,
   getUserReviewsController,
 } from "../controllers/review.controller";
 import { requireAuth } from "../middlewares/auth.middleware";
@@ -14,6 +15,16 @@ import { cacheMiddleware } from "../middlewares/cache.middleware";
 import { redisKeys } from "../utils/redisKeys";
 
 const router = Router();
+
+router.get(
+  "/admin/reviews/:id",
+  requireAdmin,
+  generalRateLimit,
+  cacheMiddleware(req =>
+    redisKeys.reviews(JSON.stringify(req.params.id), JSON.stringify(req.query))
+  ),
+  getAllReviewsController
+);
 
 router.get(
   "/reviews",
@@ -30,13 +41,17 @@ router.get(
 );
 
 router.get(
-  "/admin/reviews/:id",
-  requireAdmin,
+  "/reviews/course/:id",
+  requireAuth,
+  requireOnboarding,
   generalRateLimit,
   cacheMiddleware(req =>
-    redisKeys.reviews(JSON.stringify(req.params.id), JSON.stringify(req.query))
+    redisKeys.courseReviews(
+      JSON.stringify(req.params.id),
+      JSON.stringify(req.query)
+    )
   ),
-  getAllReviewsController
+  getCourseReviewsController
 );
 
 router.post(

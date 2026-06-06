@@ -38,8 +38,9 @@ const quizSummaryNotification = inngest.createFunction(
           title: "Quiz Summary Ready",
           message: `Your summary for "${quizTitle}" is now available. You scored ${score}%.`,
           type: "quiz",
-          relatedQuizId: quizId,
-          quizId,
+          metadata: {
+            quizId,
+          },
           sentAt: new Date(),
         },
       });

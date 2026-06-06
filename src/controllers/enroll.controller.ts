@@ -10,7 +10,6 @@ import {
   getAllEnrollsService,
   getEnrollService,
   createEnrollService,
-  updateEnrollService,
   deleteEnrollService,
 } from "../services/enroll.service";
 import { formatValidationError } from "../utils/format";
@@ -83,9 +82,9 @@ export const getEnrollController = async (
   try {
     logger.info("Started fetching enroll");
 
-    const validationResult = deleteEnrollSchema.safeParse({
-      enrollId: req.params.id,
+    const validationResult = createEnrollSchema.safeParse({
       userId: req.user.id,
+      courseId: req.params.id,
     });
 
     if (!validationResult.success) {
@@ -100,16 +99,19 @@ export const getEnrollController = async (
       });
     }
 
-    const { enrollId, userId } = validationResult.data;
+    const { userId, courseId } = validationResult.data;
 
     const enroll = await getEnrollService({
-      enrollId,
       userId,
+      courseId,
     });
 
     logger.info("Successfully get enroll");
 
-    await setCache(redisKeys.enroll(enrollId), { success: true, enroll });
+    await setCache(redisKeys.enroll(userId, courseId), {
+      success: true,
+      enroll,
+    });
 
     res.status(201).json({ success: true, enroll });
   } catch (error: unknown) {
@@ -200,72 +202,6 @@ export const createEnrollController = async (
   }
 };
 
-export const updateEnrollController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    logger.info("Started updating enroll");
-
-    const validationResult = createEnrollSchema.safeParse({
-      courseId: req.params.id,
-      userId: req.user.id,
-    });
-
-    if (!validationResult.success) {
-      logger.error("Validation failed to update enroll", {
-        error: formatValidationError(validationResult.error),
-      });
-
-      return res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        message: formatValidationError(validationResult.error),
-      });
-    }
-
-    const { courseId, userId } = validationResult.data;
-
-    const enroll = await updateEnrollService({
-      userId,
-      courseId,
-    });
-
-    logger.info("Successfully update enroll");
-
-    const keys = await getKeys(`enrolls:${courseId}:`);
-    if (keys?.length) {
-      await deleteManyCache(keys);
-    }
-
-    const keys2 = await getKeys(`course:my:${req.user.id}:*`);
-    if (keys2?.length) {
-      await deleteManyCache(keys2);
-    }
-
-    await deleteCache(redisKeys.enroll(enroll.id));
-    await deleteCache(redisKeys.profile(req.user.id));
-    await deleteCache(redisKeys.publicProfile(req.user.id));
-
-    res
-      .status(201)
-      .json({ success: true, enroll, message: "Enroll updated successfully" });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    if (message === "NOT_FOUND") {
-      res.status(404).json({
-        success: false,
-        message: "Enroll not found",
-      });
-      return;
-    }
-
-    next(error);
-  }
-};
-
 export const deleteEnrollController = async (
   req: Request,
   res: Response,
@@ -310,7 +246,7 @@ export const deleteEnrollController = async (
       await deleteManyCache(keys2);
     }
 
-    await deleteCache(redisKeys.enroll(enrollId));
+    await deleteCache(redisKeys.enroll(req.user.id, enroll.courseId));
     await deleteCache(redisKeys.profile(req.user.id));
     await deleteCache(redisKeys.publicProfile(req.user.id));
 

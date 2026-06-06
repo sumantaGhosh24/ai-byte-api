@@ -17,10 +17,10 @@ const dailyReminder = inngest.createFunction(
 
     let reminderTime: DailyReminderTime | null = null;
 
-    if (currentHour === 3) reminderTime = "morning";
-    if (currentHour === 8) reminderTime = "afternoon";
-    if (currentHour === 13) reminderTime = "evening";
-    if (currentHour === 16) reminderTime = "night";
+    if (currentHour === 8) reminderTime = "morning";
+    if (currentHour === 13) reminderTime = "afternoon";
+    if (currentHour === 18) reminderTime = "evening";
+    if (currentHour === 21) reminderTime = "night";
 
     if (!reminderTime) {
       return;
@@ -54,6 +54,9 @@ const dailyReminder = inngest.createFunction(
           title: "Daily Learning Reminder 📚",
           message: "Continue learning today and grow your streak.",
           type: "reminder",
+          metadata: {
+            reminderType: "daily",
+          },
           sentAt: new Date(),
         })),
       });

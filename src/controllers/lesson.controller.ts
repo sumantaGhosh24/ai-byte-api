@@ -196,9 +196,9 @@ export const getPublicLessonController = async (
   next: NextFunction
 ) => {
   try {
-    logger.info(`Started fetching public lesson ${req.params}`);
+    logger.info(`Started fetching public lesson ${req.params.id}`);
 
-    const validationResult = lessonIdSchema.safeParse(req.params);
+    const validationResult = lessonIdSchema.safeParse({ id: req.params.id });
 
     if (!validationResult.success) {
       logger.error("Validation failed to fetch public lesson", {

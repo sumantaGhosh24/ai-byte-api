@@ -53,9 +53,9 @@ const lessonPublishedNotification = inngest.createFunction(
           title: "New Lesson Published 🎉",
           message: `A new lesson "${lesson.title}" is now available in "${lesson.course.title}".`,
           type: "lesson",
-          relatedLessonId: lesson.id,
-          lessonId: lesson.id,
-          read: false,
+          metadata: {
+            lessonId: lesson.id,
+          },
           sentAt: new Date(),
         })),
       });

@@ -38,9 +38,9 @@ const generateLesson = inngest.createFunction(
             courseId,
             title: aiLesson.title,
             content: `# Summary 
-            ${aiLesson.summary} 
-            # Content 
-            ${aiLesson.content}`,
+${aiLesson.summary} 
+# Content 
+${aiLesson.content}`,
             duration: aiLesson.duration,
             difficulty,
             visibility: "private",

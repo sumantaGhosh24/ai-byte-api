@@ -1,8 +1,9 @@
-import { Expo } from "expo-server-sdk";
+import { Expo, ExpoPushMessage } from "expo-server-sdk";
 
 import { expo } from "../config/expo";
 import { env } from "../config/env";
 import { transporter } from "../config/mail";
+import { deactivateNotificationToken } from "./notification.service";
 
 interface PushNotificationPayload {
   tokens: string[];
@@ -17,21 +18,36 @@ export async function sendPushNotification({
   body,
   data,
 }: PushNotificationPayload) {
-  const messages = tokens
-    .filter(token => Expo.isExpoPushToken(token))
-    .map(token => ({
+  const messages: ExpoPushMessage[] = [];
+
+  for (const token of tokens) {
+    if (!Expo.isExpoPushToken(token)) {
+      continue;
+    }
+
+    messages.push({
       to: token,
+      sound: "default",
       title,
       body,
-      sound: "default" as const,
       data,
-    }));
-
-  if (!messages.length) {
-    return;
+    });
   }
 
-  await expo.sendPushNotificationsAsync(messages);
+  const chunks = expo.chunkPushNotifications(messages);
+
+  for (const chunk of chunks) {
+    const tickets = await expo.sendPushNotificationsAsync(chunk);
+
+    tickets.forEach((ticket, index) => {
+      if (
+        ticket.status === "error" &&
+        ticket.details?.error === "DeviceNotRegistered"
+      ) {
+        deactivateNotificationToken(chunk?.[index]?.to as string);
+      }
+    });
+  }
 }
 
 interface EmailTemplateParams {

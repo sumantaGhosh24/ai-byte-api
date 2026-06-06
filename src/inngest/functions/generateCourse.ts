@@ -43,9 +43,9 @@ const generateCourse = inngest.createFunction(
             courseId: course.id,
             title: lesson.title,
             content: `# Summary 
-            ${lesson.summary} 
-            # Content 
-            ${lesson.content}`,
+${lesson.summary} 
+# Content 
+${lesson.content}`,
             duration: lesson.duration,
             difficulty,
             visibility: "private",

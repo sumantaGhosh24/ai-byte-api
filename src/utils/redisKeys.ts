@@ -20,15 +20,18 @@ export const redisKeys = {
   myCourse: (id: string, userId: string) => `course:${id}:user:${userId}`,
 
   enrolls: (courseId: string, query: string) => `enrolls:${courseId}:${query}`,
-  enroll: (enrollId: string) => `enroll:${enrollId}`,
+  enroll: (userId: string, courseId: string) => `enroll:${userId}:${courseId}`,
 
   bookmarks: (courseId: string, query: string) =>
     `bookmarks:${courseId}:${query}`,
-  bookmark: (bookmarkId: string) => `bookmark:${bookmarkId}`,
+  bookmark: (userId: string, courseId: string) =>
+    `bookmark:${userId}:${courseId}`,
 
   reviews: (courseId: string, query: string) => `reviews:${courseId}:${query}`,
   userReviews: (userId: string, query: string) =>
     `reviews:user:${userId}:${query}`,
+  courseReviews: (courseId: string, query: string) =>
+    `reviews:course:${courseId}:${query}`,
 
   allLessons: (courseId: string, query: string) =>
     `lessons:all:${courseId}:${query}`,

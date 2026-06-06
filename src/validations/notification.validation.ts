@@ -14,6 +14,14 @@ export const notificationIdSchema = z.object({
   id: z.string().min(1, "Notification ID is required"),
 });
 
+export interface NotificationMetadata {
+  courseId?: string;
+  lessonId?: string;
+  quizId?: string;
+  attemptId?: string;
+  achievementId?: string;
+}
+
 export const createNotificationSchema = z.object({
   title: z.string().min(1, "Title is required"),
   message: z.string().min(1, "Message is required"),
@@ -27,9 +35,6 @@ export const createNotificationSchema = z.object({
     "quiz",
   ]),
   read: z.boolean().optional(),
-  relatedCourseId: z.string().optional(),
-  relatedLessonId: z.string().optional(),
-  relatedQuizId: z.string().optional(),
 });
 
 export type CreateNotificationParams = z.infer<typeof createNotificationSchema>;

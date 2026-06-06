@@ -32,13 +32,13 @@ router.get(
 );
 
 router.get(
-  "/attempts/users/:userId",
+  "/attempts/users",
   requireAuth,
   requireOnboarding,
   generalRateLimit,
   cacheMiddleware(req =>
     redisKeys.userAttempts(
-      JSON.stringify(req.params.userId),
+      JSON.stringify(req.user.id),
       JSON.stringify(req.query)
     )
   ),

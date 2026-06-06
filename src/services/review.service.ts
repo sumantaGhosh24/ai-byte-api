@@ -138,6 +138,70 @@ export const getUserReviewsService = async ({
   }
 };
 
+export const getCourseReviewsService = async ({
+  page,
+  limit,
+  courseId,
+  search,
+}: GetReviewsParams) => {
+  try {
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ReviewWhereInput = {
+      courseId,
+      ...(search ? { message: { contains: search, mode: "insensitive" } } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      prisma.review.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          course: {
+            include: {
+              category: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              profile: {
+                select: {
+                  name: true,
+                  username: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+
+      prisma.review.count({ where }),
+    ]);
+
+    return {
+      items,
+      paginations: {
+        page,
+        limit,
+        total,
+        hasMore: skip + items.length < total,
+        nextPage: skip + items.length < total ? page + 1 : null,
+        previousPage: page > 1 ? page - 1 : null,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
+    logger.error("Error getting course reviews", { error });
+
+    throw error;
+  }
+};
+
 export const createReviewService = async ({
   userId,
   courseId,

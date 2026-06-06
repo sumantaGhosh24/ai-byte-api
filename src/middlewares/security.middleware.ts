@@ -17,18 +17,18 @@ const securityMiddleware = async (
       return next();
     }
 
-    if (decision.isDenied() && decision.reason.isBot()) {
-      logger.error("Bot request blocked", {
-        reason: "Bot request blocked",
-        error: decision.reason,
-      });
+    // if (decision.isDenied() && decision.reason.isBot()) {
+    //   logger.error("Bot request blocked", {
+    //     reason: "Bot request blocked",
+    //     error: decision.reason,
+    //   });
 
-      res.status(403).json({
-        error: "Forbidden",
-        message: "Automated requests are not allowed",
-      });
-      return;
-    }
+    //   res.status(403).json({
+    //     error: "Forbidden",
+    //     message: "Automated requests are not allowed",
+    //   });
+    //   return;
+    // }
 
     if (decision.isDenied() && decision.reason.isShield()) {
       logger.error("Shield request blocked", {

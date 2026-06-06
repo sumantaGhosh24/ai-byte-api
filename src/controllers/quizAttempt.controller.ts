@@ -83,11 +83,11 @@ export const getUserQuizAttemptsController = async (
   next: NextFunction
 ) => {
   try {
-    logger.info(`Started fetching user quiz attempts ${req.params.userId}`);
+    logger.info(`Started fetching user quiz attempts ${req.user.id}`);
 
     const validationResult = getQuizAttemptsQuerySchema.safeParse({
       ...req.query,
-      userId: req.params.userId,
+      userId: req.user.id,
     });
 
     if (!validationResult.success) {

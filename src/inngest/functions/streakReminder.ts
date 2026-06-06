@@ -16,15 +16,6 @@ const streakReminder = inngest.createFunction(
   async ({ step }) => {
     const now = new Date();
 
-    const currentHour = now.getHours();
-
-    if (currentHour !== 21) {
-      return {
-        success: true,
-        skipped: true,
-      };
-    }
-
     const startOfDay = new Date(
       now.getFullYear(),
       now.getMonth(),
