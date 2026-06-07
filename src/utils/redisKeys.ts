@@ -9,23 +9,22 @@ export const redisKeys = {
   category: (id: string) => `category:${id}`,
 
   allCourses: (query: string) => `courses:all:${query}`,
-  publicCourses: (query: string) => `courses:public:${query}`,
+  publicCourses: (userId: string, query: string) =>
+    `courses:public:${userId}:${query}`,
   myCourses: (userId: string, query: string) => `courses:my:${userId}:${query}`,
   recommendedCourses: (userId: string, query: string) =>
     `courses:recommended:${userId}:${query}`,
   bookmarkCourses: (userId: string, query: string) =>
     `courses:bookmark:${userId}:${query}`,
-  trendingCourses: (query: string) => `courses:trending:${query}`,
+  trendingCourses: (userId: string, query: string) =>
+    `courses:trending${userId}:${query}`,
   course: (id: string) => `course:${id}`,
-  myCourse: (id: string, userId: string) => `course:${id}:user:${userId}`,
+  myCourse: (id: string, userId: string) => `course:${id}:${userId}`,
 
   enrolls: (courseId: string, query: string) => `enrolls:${courseId}:${query}`,
-  enroll: (userId: string, courseId: string) => `enroll:${userId}:${courseId}`,
 
   bookmarks: (courseId: string, query: string) =>
     `bookmarks:${courseId}:${query}`,
-  bookmark: (userId: string, courseId: string) =>
-    `bookmark:${userId}:${courseId}`,
 
   reviews: (courseId: string, query: string) => `reviews:${courseId}:${query}`,
   userReviews: (userId: string, query: string) =>
@@ -35,13 +34,13 @@ export const redisKeys = {
 
   allLessons: (courseId: string, query: string) =>
     `lessons:all:${courseId}:${query}`,
-  lessons: (courseId: string, query: string) => `lessons:${courseId}:${query}`,
+  lessons: (courseId: string, userId: string, query: string) =>
+    `lessons:${courseId}:${userId}:${query}`,
   lesson: (id: string) => `lesson:${id}`,
-  publicLesson: (id: string) => `lesson:public:${id}`,
+  publicLesson: (id: string, userId: string) => `lesson:public:${id}:${userId}`,
 
   progresses: (lessonId: string, query: string) =>
     `progresses:${lessonId}:${query}`,
-  progress: (progressId: string) => `progress:${progressId}`,
 
   allQuizzes: (courseId: string, query: string) =>
     `quizzes:all:${courseId}:${query}`,

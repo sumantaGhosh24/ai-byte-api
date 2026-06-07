@@ -40,7 +40,7 @@ router.get(
   requireOnboarding,
   generalRateLimit,
   cacheMiddleware(req =>
-    redisKeys.publicLesson(JSON.stringify(req.params.userId))
+    redisKeys.userAchievements(JSON.stringify(req.params.userId))
   ),
   getUserAchievementsController
 );

@@ -70,34 +70,6 @@ export const getAllBookmarksService = async ({
   }
 };
 
-export const getBookmarkService = async ({
-  userId,
-  courseId,
-}: CreateBookmarkParams) => {
-  try {
-    const bookmark = await prisma.bookmark.findUnique({
-      where: {
-        userId_courseId: {
-          userId,
-          courseId,
-        },
-      },
-    });
-
-    if (!bookmark) {
-      logger.error("Bookmark not found");
-
-      throw new Error("NOT_FOUND");
-    }
-
-    return bookmark;
-  } catch (error) {
-    logger.error("Error getting bookmark", { error });
-
-    throw error;
-  }
-};
-
 export const createBookmarkService = async ({
   userId,
   courseId,

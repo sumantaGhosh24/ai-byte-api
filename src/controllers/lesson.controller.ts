@@ -100,6 +100,7 @@ export const getPublicLessonsController = async (
     const validationResult = lessonsSchema.safeParse({
       ...req.query,
       courseId: req.params.id,
+      userId: req.user.id,
     });
 
     if (!validationResult.success) {
@@ -114,12 +115,14 @@ export const getPublicLessonsController = async (
       });
     }
 
-    const { page, limit, search, difficulty, courseId } = validationResult.data;
+    const { page, limit, search, difficulty, courseId, userId } =
+      validationResult.data;
 
     const result = await getPublicLessonsService({
       page,
       limit,
       search,
+      userId,
       difficulty,
       courseId,
     });
@@ -128,7 +131,11 @@ export const getPublicLessonsController = async (
 
     await setCache(
       redisKeys
-        .lessons(JSON.stringify(courseId), JSON.stringify(req.query))
+        .lessons(
+          JSON.stringify(courseId),
+          JSON.stringify(userId),
+          JSON.stringify(req.query)
+        )
         .replace(/"/g, ""),
       {
         success: true,
@@ -213,11 +220,14 @@ export const getPublicLessonController = async (
 
     const { id } = validationResult.data;
 
-    const lesson = await getPublicLessonService(id);
+    const lesson = await getPublicLessonService(id, req.user.id);
 
     logger.info(`Successfully fetched public lesson ${id}`);
 
-    await setCache(redisKeys.publicLesson(id), { success: true, lesson });
+    await setCache(redisKeys.publicLesson(id, req.user.id), {
+      success: true,
+      lesson,
+    });
 
     res.json({ success: true, lesson });
   } catch (error: unknown) {
@@ -299,10 +309,12 @@ export const createLessonController = async (
       await deleteManyCache(keys3);
     }
 
+    const keys4 = await getKeys(`course:${courseId}:*`);
+    if (keys4?.length) {
+      await deleteManyCache(keys4);
+    }
+
     await deleteCache(redisKeys.course(JSON.stringify(courseId)));
-    await deleteCache(
-      redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
-    );
 
     res
       .status(201)
@@ -383,12 +395,18 @@ export const updateLessonController = async (
       await deleteManyCache(keys3);
     }
 
+    const keys4 = await getKeys(`course:${courseId}:*`);
+    if (keys4?.length) {
+      await deleteManyCache(keys4);
+    }
+
+    const keys5 = await getKeys(`lesson:public:${lessonId}:*`);
+    if (keys5?.length) {
+      await deleteManyCache(keys5);
+    }
+
     await deleteCache(redisKeys.lesson(lessonId));
-    await deleteCache(redisKeys.publicLesson(lessonId));
     await deleteCache(redisKeys.course(JSON.stringify(courseId)));
-    await deleteCache(
-      redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
-    );
 
     res.json({ success: true, lesson, message: "Lesson updated successfully" });
   } catch (error: unknown) {
@@ -447,12 +465,18 @@ export const deleteLessonController = async (
       await deleteManyCache(keys3);
     }
 
+    const keys4 = await getKeys(`course:${lesson.courseId}:*`);
+    if (keys4?.length) {
+      await deleteManyCache(keys4);
+    }
+
+    const keys5 = await getKeys(`lesson:public:${id}:*`);
+    if (keys5?.length) {
+      await deleteManyCache(keys5);
+    }
+
     await deleteCache(redisKeys.lesson(id));
-    await deleteCache(redisKeys.publicLesson(id));
     await deleteCache(redisKeys.course(JSON.stringify(lesson.courseId)));
-    await deleteCache(
-      redisKeys.myCourse(JSON.stringify(lesson.courseId), req.user.id)
-    );
 
     res.json({ success: true, lesson, message: "Lesson deleted successfully" });
   } catch (error: unknown) {
@@ -514,10 +538,12 @@ export const fixLessonOrderController = async (
       await deleteManyCache(keys3);
     }
 
+    const keys4 = await getKeys(`course:${courseId}:*`);
+    if (keys4?.length) {
+      await deleteManyCache(keys4);
+    }
+
     await deleteCache(redisKeys.course(JSON.stringify(courseId)));
-    await deleteCache(
-      redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
-    );
 
     res.json({
       success: true,

@@ -3,12 +3,10 @@ import { logger } from "@sentry/node";
 
 import {
   getAllProgressesService,
-  getProgressService,
   updateProgressService,
 } from "../services/progress.service";
 import {
   getProgressesQuerySchema,
-  getProgressSchema,
   updateProgressSchema,
 } from "../validations/progress.validation";
 import { formatValidationError } from "../utils/format";
@@ -73,61 +71,6 @@ export const getAllProgressesController = async (
   }
 };
 
-export const getProgressController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    logger.info("Started fetching progress");
-
-    const validationResult = getProgressSchema.safeParse({
-      lessonId: req.params.id,
-      userId: req.user.id,
-    });
-
-    if (!validationResult.success) {
-      logger.error("Validation failed to get progress", {
-        error: formatValidationError(validationResult.error),
-      });
-
-      return res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        message: formatValidationError(validationResult.error),
-      });
-    }
-
-    const { lessonId, userId } = validationResult.data;
-
-    const progress = await getProgressService({
-      lessonId,
-      userId,
-    });
-
-    logger.info("Successfully get progress");
-
-    await setCache(redisKeys.progress(progress.id), {
-      success: true,
-      progress,
-    });
-
-    res.status(201).json({ success: true, progress });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    if (message === "NOT_FOUND") {
-      res.status(404).json({
-        success: false,
-        message: "Progress not found",
-      });
-      return;
-    }
-
-    next(error);
-  }
-};
-
 export const updateProgressController = async (
   req: Request,
   res: Response,
@@ -171,13 +114,19 @@ export const updateProgressController = async (
       await deleteManyCache(keys);
     }
 
-    const keys3 = await getKeys(`course:my:${req.user.id}:*`);
+    const keys2 = await getKeys(`courses:*:${req.user.id}:*`);
+    if (keys2?.length) {
+      await deleteManyCache(keys2);
+    }
+
+    const keys3 = await getKeys(`lessons:${result.courseId}:${req.user.id}:*`);
     if (keys3?.length) {
       await deleteManyCache(keys3);
     }
 
-    await deleteCache(redisKeys.enroll(req.user.id, result.courseId));
-    await deleteCache(redisKeys.progress(result.id));
+    await deleteCache(redisKeys.publicLesson(lessonId, req.user.id));
+    await deleteCache(redisKeys.publicLesson(lessonId, req.user.id));
+    await deleteCache(redisKeys.myCourse(result.courseId, userId));
     await deleteCache(redisKeys.profile(req.user.id));
     await deleteCache(redisKeys.publicProfile(req.user.id));
 

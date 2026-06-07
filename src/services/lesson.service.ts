@@ -85,6 +85,7 @@ export const getPublicLessonsService = async ({
   page,
   limit,
   search,
+  userId,
   difficulty,
   courseId,
 }: GetLessonsParams) => {
@@ -110,6 +111,15 @@ export const getPublicLessonsService = async ({
               progress: true,
             },
           },
+          progress: {
+            where: { userId },
+            select: {
+              id: true,
+              completed: true,
+              startedAt: true,
+              finishedAt: true,
+            },
+          },
         },
         orderBy: { orderIndex: "asc" },
         skip,
@@ -118,10 +128,15 @@ export const getPublicLessonsService = async ({
       prisma.lesson.count({ where }),
     ]);
 
-    const formattedItems = items.map(progress => {
+    const formattedItems = items.map(lesson => {
+      const userProgress =
+        userId && "progress" in lesson ? (lesson.progress[0] ?? null) : null;
+
       return {
-        ...progress,
-        progressCount: progress._count.progress,
+        ...lesson,
+        progressCount: lesson._count.progress,
+        isCompleted: userProgress?.completed ?? false,
+        progress: userProgress,
       };
     });
 
@@ -177,7 +192,10 @@ export const getLessonService = async (lessonId: string) => {
   }
 };
 
-export const getPublicLessonService = async (lessonId: string) => {
+export const getPublicLessonService = async (
+  lessonId: string,
+  userId: string
+) => {
   try {
     const lesson = await prisma.lesson.findFirst({
       where: {
@@ -196,6 +214,15 @@ export const getPublicLessonService = async (lessonId: string) => {
             title: true,
           },
         },
+        progress: {
+          where: { userId },
+          select: {
+            id: true,
+            completed: true,
+            startedAt: true,
+            finishedAt: true,
+          },
+        },
         _count: {
           select: { progress: true },
         },
@@ -208,7 +235,14 @@ export const getPublicLessonService = async (lessonId: string) => {
       throw new Error("NOT_FOUND");
     }
 
-    return lesson;
+    const userProgress =
+      userId && "progress" in lesson ? (lesson.progress[0] ?? null) : null;
+
+    return {
+      ...lesson,
+      isCompleted: userProgress?.completed ?? false,
+      progress: userProgress,
+    };
   } catch (error) {
     logger.error("Error fetching public lesson", { error });
 

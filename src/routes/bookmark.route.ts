@@ -2,7 +2,6 @@ import { Router } from "express";
 
 import {
   getAllBookmarksController,
-  getBookmarkController,
   createBookmarkController,
   deleteBookmarkController,
 } from "../controllers/bookmark.controller";
@@ -26,20 +25,6 @@ router.get(
     )
   ),
   getAllBookmarksController
-);
-
-router.get(
-  "/bookmark/:id",
-  requireAuth,
-  requireOnboarding,
-  generalRateLimit,
-  cacheMiddleware(req =>
-    redisKeys.bookmark(
-      JSON.stringify(req.user.id),
-      JSON.stringify(req.params.id)
-    )
-  ),
-  getBookmarkController
 );
 
 router.post(

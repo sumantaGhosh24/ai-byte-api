@@ -2,7 +2,6 @@ import { logger } from "@sentry/node";
 
 import {
   GetProgressesParams,
-  GetProgressParams,
   UpdateProgressParams,
 } from "../validations/progress.validation";
 import { prisma } from "../config/db";
@@ -64,34 +63,6 @@ export const getAllProgressesService = async ({
     };
   } catch (error) {
     logger.error("Error getting all progresses", { error });
-
-    throw error;
-  }
-};
-
-export const getProgressService = async ({
-  lessonId,
-  userId,
-}: GetProgressParams) => {
-  try {
-    const progress = await prisma.progress.findUnique({
-      where: {
-        userId_lessonId: {
-          userId,
-          lessonId,
-        },
-      },
-    });
-
-    if (!progress) {
-      logger.error("Progress not found");
-
-      throw new Error("NOT_FOUND");
-    }
-
-    return progress;
-  } catch (error) {
-    logger.error("Error getting progress", { error });
 
     throw error;
   }

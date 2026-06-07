@@ -33,6 +33,7 @@ export const paginationQuerySchema = z.object({
 });
 
 export const lessonsSchema = paginationQuerySchema.extend({
+  userId: z.string().optional(),
   courseId: z.string().optional(),
   difficulty: lessonDifficultyEnum.optional(),
   visibility: lessonVisibilityEnum.optional(),

@@ -95,7 +95,10 @@ export const getPublicCoursesController = async (
   try {
     logger.info("Started fetching public courses");
 
-    const validationResult = courseSchema.safeParse(req.query);
+    const validationResult = courseSchema.safeParse({
+      ...req.query,
+      userId: req.user.id,
+    });
 
     if (!validationResult.success) {
       logger.error("Validation failed while fetching public courses", {
@@ -109,13 +112,14 @@ export const getPublicCoursesController = async (
       });
     }
 
-    const { page, limit, search, categoryId, difficulty } =
+    const { page, limit, search, categoryId, difficulty, userId } =
       validationResult.data;
 
     const result = await getPublicCoursesService({
       page,
       limit,
       search,
+      userId,
       categoryId,
       difficulty,
     });
@@ -123,7 +127,9 @@ export const getPublicCoursesController = async (
     logger.info("Successfully fetched public courses");
 
     await setCache(
-      redisKeys.publicCourses(JSON.stringify(req.query)).replace(/"/g, ""),
+      redisKeys
+        .publicCourses(JSON.stringify(userId), JSON.stringify(req.query))
+        .replace(/"/g, ""),
       {
         success: true,
         result,
@@ -319,7 +325,10 @@ export const getTrendingCoursesController = async (
   try {
     logger.info("Started fetching trending courses");
 
-    const validationResult = courseSchema.safeParse(req.query);
+    const validationResult = courseSchema.safeParse({
+      ...req.query,
+      userId: req.user.id,
+    });
 
     if (!validationResult.success) {
       logger.error("Validation failed while fetching trending courses", {
@@ -333,13 +342,14 @@ export const getTrendingCoursesController = async (
       });
     }
 
-    const { page, limit, search, categoryId, difficulty } =
+    const { page, limit, search, categoryId, difficulty, userId } =
       validationResult.data;
 
     const result = await getTrendingCoursesService({
       page,
       limit,
       search,
+      userId: userId as string,
       categoryId,
       difficulty,
     });
@@ -347,7 +357,9 @@ export const getTrendingCoursesController = async (
     logger.info("Successfully fetched trending courses");
 
     await setCache(
-      redisKeys.trendingCourses(JSON.stringify(req.query)).replace(/"/g, ""),
+      redisKeys
+        .trendingCourses(req.user.id, JSON.stringify(req.query))
+        .replace(/"/g, ""),
       {
         success: true,
         result,
@@ -435,7 +447,7 @@ export const getMyCourseController = async (
 
     const { id } = validationResult.data;
 
-    const course = await getMyCourseService(id);
+    const course = await getMyCourseService(id, req.user.id);
 
     logger.info(`Successfully fetched my course ${id}`);
 
@@ -579,8 +591,12 @@ export const updateCourseController = async (
       await deleteManyCache(keys);
     }
 
+    const keys2 = await getKeys(`course:${courseId}:*`);
+    if (keys2?.length) {
+      await deleteManyCache(keys2);
+    }
+
     await deleteCache(redisKeys.course(courseId));
-    await deleteCache(redisKeys.myCourse(courseId, req.user.id));
 
     res.json({ success: true, course, message: "Course updated successfully" });
   } catch (error: unknown) {
@@ -632,8 +648,12 @@ export const deleteCourseController = async (
       await deleteManyCache(keys);
     }
 
+    const keys2 = await getKeys(`course:${id}:*`);
+    if (keys2?.length) {
+      await deleteManyCache(keys2);
+    }
+
     await deleteCache(redisKeys.course(id));
-    await deleteCache(redisKeys.myCourse(id, req.user.id));
 
     res.json({ success: true, course, message: "Course deleted sucessfully" });
   } catch (error: unknown) {

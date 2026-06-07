@@ -10,7 +10,6 @@ import {
   createBookmarkService,
   deleteBookmarkService,
   getAllBookmarksService,
-  getBookmarkService,
 } from "../services/bookmark.service";
 import { formatValidationError } from "../utils/format";
 import {
@@ -73,61 +72,6 @@ export const getAllBookmarksController = async (
   }
 };
 
-export const getBookmarkController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    logger.info("Started fetching bookmark");
-
-    const validationResult = createBookmarkSchema.safeParse({
-      userId: req.user.id,
-      courseId: req.params.id,
-    });
-
-    if (!validationResult.success) {
-      logger.error("Validation failed to get bookmark", {
-        error: formatValidationError(validationResult.error),
-      });
-
-      return res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        message: formatValidationError(validationResult.error),
-      });
-    }
-
-    const { userId, courseId } = validationResult.data;
-
-    const bookmark = await getBookmarkService({
-      userId,
-      courseId,
-    });
-
-    logger.info("Successfully get bookmark");
-
-    await setCache(redisKeys.bookmark(userId, courseId), {
-      success: true,
-      bookmark,
-    });
-
-    res.status(201).json({ success: true, bookmark });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    if (message === "NOT_FOUND") {
-      res.status(404).json({
-        success: false,
-        message: "Bookmark not found",
-      });
-      return;
-    }
-
-    next(error);
-  }
-};
-
 export const createBookmarkController = async (
   req: Request,
   res: Response,
@@ -162,18 +106,12 @@ export const createBookmarkController = async (
 
     logger.info("Successfully created bookmark");
 
-    const keys = await getKeys(`courses:bookmark:${req.user.id}`);
+    const keys = await getKeys(`courses:*:${req.user.id}`);
     if (keys?.length) {
       await deleteManyCache(keys);
     }
 
-    const keys2 = await getKeys(`bookmarks:${courseId}:*`);
-    if (keys2?.length) {
-      await deleteManyCache(keys2);
-    }
-
-    await deleteCache(redisKeys.profile(req.user.id));
-    await deleteCache(redisKeys.publicProfile(req.user.id));
+    await deleteCache(redisKeys.myCourse(courseId, userId));
 
     res.status(201).json({
       success: true,
@@ -237,19 +175,12 @@ export const deleteBookmarkController = async (
 
     logger.info("Successfully deleted bookmark");
 
-    const keys = await getKeys(`courses:bookmark:${req.user.id}`);
+    const keys = await getKeys(`courses:*:${req.user.id}`);
     if (keys?.length) {
       await deleteManyCache(keys);
     }
 
-    const keys2 = await getKeys(`bookmarks:${bookmark.courseId}:*`);
-    if (keys2?.length) {
-      await deleteManyCache(keys2);
-    }
-
-    await deleteCache(redisKeys.bookmark(req.user.id, bookmark.courseId));
-    await deleteCache(redisKeys.profile(req.user.id));
-    await deleteCache(redisKeys.publicProfile(req.user.id));
+    await deleteCache(redisKeys.myCourse(bookmark.courseId, userId));
 
     res.status(201).json({
       success: true,

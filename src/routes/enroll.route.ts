@@ -4,7 +4,6 @@ import {
   createEnrollController,
   deleteEnrollController,
   getAllEnrollsController,
-  getEnrollController,
 } from "../controllers/enroll.controller";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { requireOnboarding } from "../middlewares/onboarding.middleware";
@@ -23,17 +22,6 @@ router.get(
     redisKeys.enrolls(JSON.stringify(req.params.id), JSON.stringify(req.query))
   ),
   getAllEnrollsController
-);
-
-router.get(
-  "/enroll/:id",
-  requireAuth,
-  requireOnboarding,
-  generalRateLimit,
-  cacheMiddleware(req =>
-    redisKeys.enroll(JSON.stringify(req.user.id), JSON.stringify(req.params.id))
-  ),
-  getEnrollController
 );
 
 router.post(

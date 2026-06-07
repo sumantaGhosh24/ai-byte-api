@@ -72,34 +72,6 @@ export const getAllEnrollsService = async ({
   }
 };
 
-export const getEnrollService = async ({
-  userId,
-  courseId,
-}: CreateEnrollParams) => {
-  try {
-    const enroll = await prisma.enroll.findUnique({
-      where: {
-        userId_courseId: {
-          userId,
-          courseId,
-        },
-      },
-    });
-
-    if (!enroll) {
-      logger.error("Enroll not found");
-
-      throw new Error("NOT_FOUND");
-    }
-
-    return enroll;
-  } catch (error) {
-    logger.error("Error getting enroll", { error });
-
-    throw error;
-  }
-};
-
 export const createEnrollService = async ({
   userId,
   courseId,

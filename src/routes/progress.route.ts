@@ -2,7 +2,6 @@ import { Router } from "express";
 
 import {
   getAllProgressesController,
-  getProgressController,
   updateProgressController,
 } from "../controllers/progress.controller";
 import { requireAuth } from "../middlewares/auth.middleware";
@@ -25,15 +24,6 @@ router.get(
     )
   ),
   getAllProgressesController
-);
-
-router.get(
-  "/progress/:id",
-  requireAuth,
-  requireOnboarding,
-  generalRateLimit,
-  cacheMiddleware(req => redisKeys.progress(JSON.stringify(req.params.id))),
-  getProgressController
 );
 
 router.post(

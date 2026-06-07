@@ -114,6 +114,7 @@ export const getPublicCoursesService = async ({
   page,
   limit,
   search,
+  userId,
   categoryId,
   difficulty,
 }: GetCoursesParams) => {
@@ -159,6 +160,20 @@ export const getPublicCoursesService = async ({
           reviews: {
             select: { rating: true },
           },
+          enrolls: {
+            where: { userId },
+            select: {
+              id: true,
+              completed: true,
+              finishedLessons: true,
+              startedAt: true,
+              finishedAt: true,
+            },
+          },
+          bookmarks: {
+            where: { userId },
+            select: { id: true },
+          },
         },
         orderBy: { createdAt: "desc" },
         skip,
@@ -174,6 +189,18 @@ export const getPublicCoursesService = async ({
             course.reviews.length
           : 0;
 
+      const isEnrolled =
+        userId && "enrolls" in course ? course.enrolls.length > 0 : false;
+
+      const isBookmarked =
+        userId && "bookmarks" in course ? course.bookmarks.length > 0 : false;
+
+      const enrollment =
+        userId && "enrolls" in course ? (course.enrolls[0] ?? null) : null;
+
+      const bookmark =
+        userId && "bookmarks" in course ? (course.bookmarks[0] ?? null) : null;
+
       return {
         ...course,
         lessonsCount: course._count.lessons,
@@ -182,8 +209,14 @@ export const getPublicCoursesService = async ({
         bookmarksCount: course._count.bookmarks,
         reviewsCount: course._count.reviews,
         averageReview,
+        isEnrolled,
+        isBookmarked,
+        enrollment,
+        bookmark,
         _count: undefined,
         reviews: undefined,
+        enrolls: undefined,
+        bookmarks: undefined,
       };
     });
 
@@ -243,10 +276,6 @@ export const getMyCoursesService = async ({
               visibility: true,
             },
           },
-          enrolls: {
-            where: { userId },
-            select: { startedAt: true },
-          },
           _count: {
             select: {
               lessons: {
@@ -262,6 +291,20 @@ export const getMyCoursesService = async ({
           },
           reviews: {
             select: { rating: true },
+          },
+          enrolls: {
+            where: { userId },
+            select: {
+              id: true,
+              completed: true,
+              finishedLessons: true,
+              startedAt: true,
+              finishedAt: true,
+            },
+          },
+          bookmarks: {
+            where: { userId },
+            select: { id: true },
           },
         },
         orderBy: {
@@ -281,6 +324,18 @@ export const getMyCoursesService = async ({
             course.reviews.length
           : 0;
 
+      const isEnrolled =
+        userId && "enrolls" in course ? course.enrolls.length > 0 : false;
+
+      const isBookmarked =
+        userId && "bookmarks" in course ? course.bookmarks.length > 0 : false;
+
+      const enrollment =
+        userId && "enrolls" in course ? (course.enrolls[0] ?? null) : null;
+
+      const bookmark =
+        userId && "bookmarks" in course ? (course.bookmarks[0] ?? null) : null;
+
       return {
         ...course,
         lessonsCount: course._count.lessons,
@@ -289,8 +344,14 @@ export const getMyCoursesService = async ({
         bookmarksCount: course._count.bookmarks,
         reviewsCount: course._count.reviews,
         averageReview,
+        isEnrolled,
+        isBookmarked,
+        enrollment,
+        bookmark,
         _count: undefined,
         reviews: undefined,
+        enrolls: undefined,
+        bookmarks: undefined,
       };
     });
 
@@ -367,6 +428,20 @@ export const getRecommendedCoursesService = async ({
         reviews: {
           select: { rating: true },
         },
+        enrolls: {
+          where: { userId },
+          select: {
+            id: true,
+            completed: true,
+            finishedLessons: true,
+            startedAt: true,
+            finishedAt: true,
+          },
+        },
+        bookmarks: {
+          where: { userId },
+          select: { id: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -385,12 +460,24 @@ export const getRecommendedCoursesService = async ({
 
     const paginatedCourses = filteredCourses.slice(skip, skip + limit);
 
-    const items = paginatedCourses.map(course => {
+    const formattedItems = paginatedCourses.map(course => {
       const averageReview =
         course.reviews.length > 0
           ? course.reviews.reduce((acc, review) => acc + review.rating, 0) /
             course.reviews.length
           : 0;
+
+      const isEnrolled =
+        userId && "enrolls" in course ? course.enrolls.length > 0 : false;
+
+      const isBookmarked =
+        userId && "bookmarks" in course ? course.bookmarks.length > 0 : false;
+
+      const enrollment =
+        userId && "enrolls" in course ? (course.enrolls[0] ?? null) : null;
+
+      const bookmark =
+        userId && "bookmarks" in course ? (course.bookmarks[0] ?? null) : null;
 
       return {
         ...course,
@@ -400,11 +487,19 @@ export const getRecommendedCoursesService = async ({
         bookmarksCount: course._count.bookmarks,
         reviewsCount: course._count.reviews,
         averageReview,
+        isEnrolled,
+        isBookmarked,
+        enrollment,
+        bookmark,
+        _count: undefined,
+        reviews: undefined,
+        enrolls: undefined,
+        bookmarks: undefined,
       };
     });
 
     return {
-      items,
+      items: formattedItems,
       paginations: {
         page,
         limit,
@@ -478,6 +573,20 @@ export const getBookmarkCoursesService = async ({
           reviews: {
             select: { rating: true },
           },
+          enrolls: {
+            where: { userId },
+            select: {
+              id: true,
+              completed: true,
+              finishedLessons: true,
+              startedAt: true,
+              finishedAt: true,
+            },
+          },
+          bookmarks: {
+            where: { userId },
+            select: { id: true },
+          },
         },
         orderBy: { createdAt: "desc" },
         skip,
@@ -494,6 +603,18 @@ export const getBookmarkCoursesService = async ({
             course.reviews.length
           : 0;
 
+      const isEnrolled =
+        userId && "enrolls" in course ? course.enrolls.length > 0 : false;
+
+      const isBookmarked =
+        userId && "bookmarks" in course ? course.bookmarks.length > 0 : false;
+
+      const enrollment =
+        userId && "enrolls" in course ? (course.enrolls[0] ?? null) : null;
+
+      const bookmark =
+        userId && "bookmarks" in course ? (course.bookmarks[0] ?? null) : null;
+
       return {
         ...course,
         lessonsCount: course._count.lessons,
@@ -502,8 +623,14 @@ export const getBookmarkCoursesService = async ({
         bookmarksCount: course._count.bookmarks,
         reviewsCount: course._count.reviews,
         averageReview,
+        isEnrolled,
+        isBookmarked,
+        enrollment,
+        bookmark,
         _count: undefined,
         reviews: undefined,
+        enrolls: undefined,
+        bookmarks: undefined,
       };
     });
 
@@ -530,9 +657,10 @@ export const getTrendingCoursesService = async ({
   page,
   limit,
   search,
+  userId,
   categoryId,
   difficulty,
-}: Omit<GetMyCoursesParams, "userId">) => {
+}: GetMyCoursesParams) => {
   try {
     const skip = (page - 1) * limit;
 
@@ -575,6 +703,20 @@ export const getTrendingCoursesService = async ({
           reviews: {
             select: { rating: true },
           },
+          enrolls: {
+            where: { userId },
+            select: {
+              id: true,
+              completed: true,
+              finishedLessons: true,
+              startedAt: true,
+              finishedAt: true,
+            },
+          },
+          bookmarks: {
+            where: { userId },
+            select: { id: true },
+          },
         },
         orderBy: {
           enrolls: { _count: "desc" },
@@ -593,6 +735,18 @@ export const getTrendingCoursesService = async ({
             course.reviews.length
           : 0;
 
+      const isEnrolled =
+        userId && "enrolls" in course ? course.enrolls.length > 0 : false;
+
+      const isBookmarked =
+        userId && "bookmarks" in course ? course.bookmarks.length > 0 : false;
+
+      const enrollment =
+        userId && "enrolls" in course ? (course.enrolls[0] ?? null) : null;
+
+      const bookmark =
+        userId && "bookmarks" in course ? (course.bookmarks[0] ?? null) : null;
+
       return {
         ...course,
         lessonsCount: course._count.lessons,
@@ -601,8 +755,14 @@ export const getTrendingCoursesService = async ({
         bookmarksCount: course._count.bookmarks,
         reviewsCount: course._count.reviews,
         averageReview,
+        isEnrolled,
+        isBookmarked,
+        enrollment,
+        bookmark,
         _count: undefined,
         reviews: undefined,
+        enrolls: undefined,
+        bookmarks: undefined,
       };
     });
 
@@ -680,7 +840,7 @@ export const getCourseService = async (courseId: string) => {
   }
 };
 
-export const getMyCourseService = async (courseId: string) => {
+export const getMyCourseService = async (courseId: string, userId: string) => {
   try {
     const [course, averageReview] = await Promise.all([
       prisma.course.findFirst({
@@ -712,6 +872,20 @@ export const getMyCourseService = async (courseId: string) => {
               },
             },
           },
+          enrolls: {
+            where: { userId },
+            select: {
+              id: true,
+              completed: true,
+              finishedLessons: true,
+              startedAt: true,
+              finishedAt: true,
+            },
+          },
+          bookmarks: {
+            where: { userId },
+            select: { id: true },
+          },
         },
       }),
 
@@ -727,6 +901,18 @@ export const getMyCourseService = async (courseId: string) => {
       throw new Error("NOT_FOUND");
     }
 
+    const isEnrolled =
+      userId && "enrolls" in course ? course.enrolls.length > 0 : false;
+
+    const isBookmarked =
+      userId && "bookmarks" in course ? course.bookmarks.length > 0 : false;
+
+    const enrollment =
+      userId && "enrolls" in course ? (course.enrolls[0] ?? null) : null;
+
+    const bookmark =
+      userId && "bookmarks" in course ? (course.bookmarks[0] ?? null) : null;
+
     return {
       ...course,
       lessonsCount: course._count.lessons,
@@ -735,6 +921,10 @@ export const getMyCourseService = async (courseId: string) => {
       bookmarksCount: course._count.bookmarks,
       reviewsCount: course._count.reviews,
       averageReview: averageReview._avg.rating || 0,
+      isEnrolled,
+      isBookmarked,
+      enrollment,
+      bookmark,
     };
   } catch (error) {
     logger.error("Error fetching my course", { error });

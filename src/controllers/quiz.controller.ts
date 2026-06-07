@@ -287,10 +287,12 @@ export const createQuizController = async (
       await deleteManyCache(keys3);
     }
 
+    const keys4 = await getKeys(`course:${courseId}:*`);
+    if (keys4?.length) {
+      await deleteManyCache(keys4);
+    }
+
     await deleteCache(redisKeys.course(JSON.stringify(courseId)));
-    await deleteCache(
-      redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
-    );
 
     res
       .status(201)
@@ -370,12 +372,14 @@ export const updateQuizController = async (
       await deleteManyCache(keys3);
     }
 
+    const keys4 = await getKeys(`course:${courseId}:*`);
+    if (keys4?.length) {
+      await deleteManyCache(keys4);
+    }
+
     await deleteCache(redisKeys.quiz(quizId as string));
     await deleteCache(redisKeys.publicQuiz(quizId as string));
     await deleteCache(redisKeys.course(JSON.stringify(courseId)));
-    await deleteCache(
-      redisKeys.myCourse(JSON.stringify(courseId), req.user.id)
-    );
 
     res.json({ success: true, quiz, message: "Quiz updated successfully" });
   } catch (error: unknown) {
@@ -437,11 +441,13 @@ export const deleteQuizController = async (
       await deleteManyCache(keys3);
     }
 
+    const keys4 = await getKeys(`course:${quiz.courseId}:*`);
+    if (keys4?.length) {
+      await deleteManyCache(keys4);
+    }
+
     await deleteCache(redisKeys.quiz(id));
     await deleteCache(redisKeys.course(JSON.stringify(quiz.courseId)));
-    await deleteCache(
-      redisKeys.myCourse(JSON.stringify(quiz.courseId), req.user.id)
-    );
 
     res.json({ success: true, quiz, message: "Quiz deleted successfully" });
   } catch (error: unknown) {

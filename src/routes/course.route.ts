@@ -36,7 +36,9 @@ router.get(
   requireAuth,
   requireOnboarding,
   generalRateLimit,
-  cacheMiddleware(req => redisKeys.publicCourses(JSON.stringify(req.query))),
+  cacheMiddleware(req =>
+    redisKeys.publicCourses(req.user.id, JSON.stringify(req.query))
+  ),
   getPublicCoursesController
 );
 
@@ -46,7 +48,7 @@ router.get(
   requireOnboarding,
   generalRateLimit,
   cacheMiddleware(req =>
-    redisKeys.myCourses(JSON.stringify(req.user.id), JSON.stringify(req.query))
+    redisKeys.myCourses(req.user.id, JSON.stringify(req.query))
   ),
   getMyCoursesController
 );
@@ -57,10 +59,7 @@ router.get(
   requireOnboarding,
   generalRateLimit,
   cacheMiddleware(req =>
-    redisKeys.recommendedCourses(
-      JSON.stringify(req.user.id),
-      JSON.stringify(req.query)
-    )
+    redisKeys.recommendedCourses(req.user.id, JSON.stringify(req.query))
   ),
   getRecommendedCoursesController
 );
@@ -71,10 +70,7 @@ router.get(
   requireOnboarding,
   generalRateLimit,
   cacheMiddleware(req =>
-    redisKeys.bookmarkCourses(
-      JSON.stringify(req.user.id),
-      JSON.stringify(req.query)
-    )
+    redisKeys.bookmarkCourses(req.user.id, JSON.stringify(req.query))
   ),
   getBookmarkCoursesController
 );
@@ -84,7 +80,9 @@ router.get(
   requireAuth,
   requireOnboarding,
   generalRateLimit,
-  cacheMiddleware(req => redisKeys.trendingCourses(JSON.stringify(req.query))),
+  cacheMiddleware(req =>
+    redisKeys.trendingCourses(req.user.id, JSON.stringify(req.query))
+  ),
   getTrendingCoursesController
 );
 
@@ -102,7 +100,7 @@ router.get(
   requireOnboarding,
   generalRateLimit,
   cacheMiddleware(req =>
-    redisKeys.myCourses(JSON.stringify(req.user.id), JSON.stringify(req.query))
+    redisKeys.myCourse(JSON.stringify(req.params.id), req.user.id)
   ),
   getMyCourseController
 );

@@ -229,9 +229,13 @@ export const createReviewController = async (
       await deleteManyCache(keys3);
     }
 
+    const keys4 = await getKeys(`course:${courseId}:*`);
+    if (keys4?.length) {
+      await deleteManyCache(keys4);
+    }
+
     await deleteCache(redisKeys.profile(req.user.id));
     await deleteCache(redisKeys.publicProfile(req.user.id));
-    await deleteCache(redisKeys.myCourse(courseId, req.user.id));
 
     res
       .status(201)
@@ -309,9 +313,13 @@ export const deleteReviewController = async (
       await deleteManyCache(keys3);
     }
 
+    const keys4 = await getKeys(`course:${courseId}:*`);
+    if (keys4?.length) {
+      await deleteManyCache(keys4);
+    }
+
     await deleteCache(redisKeys.profile(req.user.id));
     await deleteCache(redisKeys.publicProfile(req.user.id));
-    await deleteCache(redisKeys.myCourse(courseId, req.user.id));
 
     res.status(201).json({
       success: true,

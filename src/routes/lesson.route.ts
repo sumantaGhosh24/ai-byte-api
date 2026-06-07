@@ -39,7 +39,11 @@ router.get(
   requireOnboarding,
   generalRateLimit,
   cacheMiddleware(req =>
-    redisKeys.lessons(JSON.stringify(req.params.id), JSON.stringify(req.query))
+    redisKeys.lessons(
+      JSON.stringify(req.params.id),
+      req.user.id,
+      JSON.stringify(req.query)
+    )
   ),
   getPublicLessonsController
 );
@@ -57,7 +61,9 @@ router.get(
   requireAuth,
   requireOnboarding,
   generalRateLimit,
-  cacheMiddleware(req => redisKeys.publicLesson(JSON.stringify(req.params.id))),
+  cacheMiddleware(req =>
+    redisKeys.publicLesson(JSON.stringify(req.params.id), req.user.id)
+  ),
   getPublicLessonController
 );
 
