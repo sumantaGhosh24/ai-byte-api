@@ -9,7 +9,6 @@ import { clerkMiddleware } from "@clerk/express";
 import { serve } from "inngest/express";
 
 import corsOptions from "./config/corsOptions";
-import securityMiddleware from "./middlewares/security.middleware";
 import { clerkWebhookHandler } from "./webhooks/clerk";
 import { sentryClerkUserMiddleware } from "./middlewares/sentryClerkUser.middleware";
 import { inngest } from "./inngest/client";
@@ -60,7 +59,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use(sentryClerkUserMiddleware);
-app.use(securityMiddleware);
+// app.use(securityMiddleware);
 
 app.use(
   morgan("combined", {
