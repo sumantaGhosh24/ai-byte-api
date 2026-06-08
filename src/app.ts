@@ -44,6 +44,7 @@ import streakReminder from "./inngest/functions/streakReminder";
 import lessonReminder from "./inngest/functions/lessonReminder";
 import weeklyReminder from "./inngest/functions/weeklyReminder";
 import monthlyReminder from "./inngest/functions/monthlyReminder";
+import { keepAlive } from "./inngest/functions/keepAlive";
 
 const app = express();
 
@@ -106,6 +107,7 @@ app.use(
       lessonReminder,
       weeklyReminder,
       monthlyReminder,
+      keepAlive,
     ],
   })
 );
