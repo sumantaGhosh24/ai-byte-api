@@ -69,14 +69,14 @@ const quizPublishedNotification = inngest.createFunction(
       });
     });
 
-    for (const enrollment of enrollments) {
-      const user = enrollment.user;
+    await step.run("send-notifications", async () => {
+      for (const enrollment of enrollments) {
+        const user = enrollment.user;
 
-      if (
-        user.profile?.pushNotificationsEnabled &&
-        user.notificationTokens.length
-      ) {
-        await step.run(`push-${user.id}`, async () => {
+        if (
+          user.profile?.pushNotificationsEnabled &&
+          user.notificationTokens.length
+        ) {
           await sendPushNotification({
             tokens: user.notificationTokens.map(token => token.token),
             title: "New Quiz Published 🎯",
@@ -87,19 +87,17 @@ const quizPublishedNotification = inngest.createFunction(
               courseId: quiz.course.id,
             },
           });
-        });
-      }
+        }
 
-      if (user.profile?.emailNotificationsEnabled && user.email) {
-        await step.run(`email-${user.id}`, async () => {
+        if (user.profile?.emailNotificationsEnabled && user.email) {
           await sendQuizPublishedEmail({
             email: user.email,
             courseTitle: quiz.course.title,
             quizTitle: quiz.title,
           });
-        });
+        }
       }
-    }
+    });
 
     return {
       success: true,

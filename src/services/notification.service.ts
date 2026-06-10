@@ -13,27 +13,22 @@ export const registerNotificationTokenService = async ({
   platform,
 }: RegisterNotificationTokenParams) => {
   try {
-    const existing = await prisma.notificationToken.findFirst({
+    await prisma.notificationToken.upsert({
       where: {
-        userId,
+        userId_token: {
+          userId,
+          token,
+        },
+      },
+      update: {
         token,
+        isActive: true,
         platform,
       },
-    });
-
-    if (existing) {
-      return prisma.notificationToken.update({
-        where: { id: existing.id },
-        data: { isActive: true },
-      });
-    }
-
-    return prisma.notificationToken.create({
-      data: {
+      create: {
         userId,
         token,
         platform,
-        isActive: true,
       },
     });
   } catch (error) {

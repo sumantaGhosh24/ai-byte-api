@@ -47,29 +47,31 @@ const lessonReminder = inngest.createFunction(
       });
     });
 
-    for (const user of eligibleUsers) {
-      if (
-        user.profile?.pushNotificationsEnabled &&
-        user.notificationTokens.length
-      ) {
-        await sendPushNotification({
-          tokens: user.notificationTokens.map(token => token.token),
-          title: "Continue Your Course 🎯",
-          body: "You have unfinished lessons waiting.",
-          data: {
-            type: "lesson",
-          },
-        });
-      }
+    await step.run("send-notifications", async () => {
+      for (const user of eligibleUsers) {
+        if (
+          user.profile?.pushNotificationsEnabled &&
+          user.notificationTokens.length
+        ) {
+          await sendPushNotification({
+            tokens: user.notificationTokens.map(token => token.token),
+            title: "Continue Your Course 🎯",
+            body: "You have unfinished lessons waiting.",
+            data: {
+              type: "lesson",
+            },
+          });
+        }
 
-      if (user.profile?.emailNotificationsEnabled && user.email) {
-        await sendUserDailyReminderNotification({
-          email: user.email,
-          title: "Continue Your Course 🎯",
-          message: "You have unfinished lessons waiting.",
-        });
+        if (user.profile?.emailNotificationsEnabled && user.email) {
+          await sendUserDailyReminderNotification({
+            email: user.email,
+            title: "Continue Your Course 🎯",
+            message: "You have unfinished lessons waiting.",
+          });
+        }
       }
-    }
+    });
 
     return {
       success: true,

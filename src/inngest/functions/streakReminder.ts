@@ -62,29 +62,31 @@ const streakReminder = inngest.createFunction(
       });
     });
 
-    for (const user of eligibleUsers) {
-      if (
-        user.profile?.pushNotificationsEnabled &&
-        user.notificationTokens.length
-      ) {
-        await sendPushNotification({
-          tokens: user.notificationTokens.map(token => token.token),
-          title: "Keep Your Streak Alive 🔥",
-          body: "Complete a lesson today to maintain your streak.",
-          data: {
-            type: "reminder",
-          },
-        });
-      }
+    await step.run("send-notifications", async () => {
+      for (const user of eligibleUsers) {
+        if (
+          user.profile?.pushNotificationsEnabled &&
+          user.notificationTokens.length
+        ) {
+          await sendPushNotification({
+            tokens: user.notificationTokens.map(token => token.token),
+            title: "Keep Your Streak Alive 🔥",
+            body: "Complete a lesson today to maintain your streak.",
+            data: {
+              type: "reminder",
+            },
+          });
+        }
 
-      if (user.profile?.emailNotificationsEnabled && user.email) {
-        await sendUserDailyReminderNotification({
-          email: user.email,
-          title: "Keep Your Streak Alive 🔥",
-          message: "Complete a lesson today to maintain your streak.",
-        });
+        if (user.profile?.emailNotificationsEnabled && user.email) {
+          await sendUserDailyReminderNotification({
+            email: user.email,
+            title: "Keep Your Streak Alive 🔥",
+            message: "Complete a lesson today to maintain your streak.",
+          });
+        }
       }
-    }
+    });
 
     return {
       success: true,

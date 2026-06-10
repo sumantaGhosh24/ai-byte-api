@@ -40,30 +40,32 @@ const weeklyReminder = inngest.createFunction(
       });
     });
 
-    for (const user of users) {
-      if (
-        user.profile?.pushNotificationsEnabled &&
-        user.notificationTokens.length
-      ) {
-        await sendPushNotification({
-          tokens: user.notificationTokens.map(token => token.token),
-          title: "Weekly Learning Report 📈",
-          body: "Check your weekly progress and continue your learning journey.",
-          data: {
-            type: "general",
-          },
-        });
-      }
+    await step.run("send-notifications", async () => {
+      for (const user of users) {
+        if (
+          user.profile?.pushNotificationsEnabled &&
+          user.notificationTokens.length
+        ) {
+          await sendPushNotification({
+            tokens: user.notificationTokens.map(token => token.token),
+            title: "Weekly Learning Report 📈",
+            body: "Check your weekly progress and continue your learning journey.",
+            data: {
+              type: "general",
+            },
+          });
+        }
 
-      if (user.profile?.emailNotificationsEnabled && user.email) {
-        await sendUserDailyReminderNotification({
-          email: user.email,
-          title: "Weekly Learning Report 📈",
-          message:
-            "Check your weekly progress and continue your learning journey.",
-        });
+        if (user.profile?.emailNotificationsEnabled && user.email) {
+          await sendUserDailyReminderNotification({
+            email: user.email,
+            title: "Weekly Learning Report 📈",
+            message:
+              "Check your weekly progress and continue your learning journey.",
+          });
+        }
       }
-    }
+    });
 
     return {
       success: true,

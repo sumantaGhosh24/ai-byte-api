@@ -20,4 +20,7 @@ export const env = {
   SMTP_USER: process.env.SMTP_USER!,
   SMTP_PASSWORD: process.env.SMTP_PASSWORD!,
   MAIL_FROM: process.env.MAIL_FROM!,
+  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID!,
+  FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL!,
+  FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY!,
 };

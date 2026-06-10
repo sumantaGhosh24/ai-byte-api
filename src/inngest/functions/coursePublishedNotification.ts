@@ -45,29 +45,31 @@ const coursePublishedNotification = inngest.createFunction(
       });
     });
 
-    for (const user of users) {
-      if (
-        user.profile?.pushNotificationsEnabled &&
-        user.notificationTokens.length
-      ) {
-        await sendPushNotification({
-          tokens: user.notificationTokens.map(token => token.token),
-          title: "New Course Available 🚀",
-          body: `${title} has just been published.`,
-          data: {
-            type: "course",
-            courseId,
-          },
-        });
-      }
+    await step.run("send-notifications", async () => {
+      for (const user of users) {
+        if (
+          user.profile?.pushNotificationsEnabled &&
+          user.notificationTokens.length
+        ) {
+          await sendPushNotification({
+            tokens: user.notificationTokens.map(token => token.token),
+            title: "New Course Available 🚀",
+            body: `${title} has just been published.`,
+            data: {
+              type: "course",
+              courseId,
+            },
+          });
+        }
 
-      if (user.profile?.emailNotificationsEnabled && user.email) {
-        await sendCoursePublishedEmail({
-          email: user.email,
-          courseTitle: title,
-        });
+        if (user.profile?.emailNotificationsEnabled && user.email) {
+          await sendCoursePublishedEmail({
+            email: user.email,
+            courseTitle: title,
+          });
+        }
       }
-    }
+    });
 
     return {
       success: true,

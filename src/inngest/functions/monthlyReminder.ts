@@ -40,30 +40,32 @@ const monthlyReminder = inngest.createFunction(
       });
     });
 
-    for (const user of users) {
-      if (
-        user.profile?.pushNotificationsEnabled &&
-        user.notificationTokens.length
-      ) {
-        await sendPushNotification({
-          tokens: user.notificationTokens.map(token => token.token),
-          title: "New Month, New Goals 🚀",
-          body: "Set your learning goals for this month and stay consistent.",
-          data: {
-            type: "general",
-          },
-        });
-      }
+    await step.run("send-notifications", async () => {
+      for (const user of users) {
+        if (
+          user.profile?.pushNotificationsEnabled &&
+          user.notificationTokens.length
+        ) {
+          await sendPushNotification({
+            tokens: user.notificationTokens.map(token => token.token),
+            title: "New Month, New Goals 🚀",
+            body: "Set your learning goals for this month and stay consistent.",
+            data: {
+              type: "general",
+            },
+          });
+        }
 
-      if (user.profile?.emailNotificationsEnabled && user.email) {
-        await sendUserDailyReminderNotification({
-          email: user.email,
-          title: "New Month, New Goals 🚀",
-          message:
-            "Set your learning goals for this month and stay consistent.",
-        });
+        if (user.profile?.emailNotificationsEnabled && user.email) {
+          await sendUserDailyReminderNotification({
+            email: user.email,
+            title: "New Month, New Goals 🚀",
+            message:
+              "Set your learning goals for this month and stay consistent.",
+          });
+        }
       }
-    }
+    });
 
     return {
       success: true,

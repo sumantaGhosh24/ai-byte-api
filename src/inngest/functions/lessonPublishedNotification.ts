@@ -61,14 +61,14 @@ const lessonPublishedNotification = inngest.createFunction(
       });
     });
 
-    for (const enrollment of enrollments) {
-      const user = enrollment.user;
+    await step.run("send-notifications", async () => {
+      for (const enrollment of enrollments) {
+        const user = enrollment.user;
 
-      if (
-        user.profile?.pushNotificationsEnabled &&
-        user.notificationTokens.length
-      ) {
-        await step.run(`push-${user.id}`, async () => {
+        if (
+          user.profile?.pushNotificationsEnabled &&
+          user.notificationTokens.length
+        ) {
           await sendPushNotification({
             tokens: user.notificationTokens.map(token => token.token),
             title: "New Lesson Published 🎉",
@@ -79,19 +79,17 @@ const lessonPublishedNotification = inngest.createFunction(
               courseId: lesson.courseId,
             },
           });
-        });
-      }
+        }
 
-      if (user.profile?.emailNotificationsEnabled && user.email) {
-        await step.run(`email-${user.id}`, async () => {
+        if (user.profile?.emailNotificationsEnabled && user.email) {
           await sendLessonPublishedEmail({
             email: user.email,
             lessonTitle: lesson.title,
             courseTitle: lesson.course.title,
           });
-        });
+        }
       }
-    }
+    });
 
     return {
       success: true,

@@ -1,7 +1,5 @@
-import { Expo, ExpoPushMessage } from "expo-server-sdk";
-
-import { expo } from "../config/expo";
 import { env } from "../config/env";
+import { messaging } from "../config/firebase";
 import { transporter } from "../config/mail";
 import { deactivateNotificationToken } from "./notification.service";
 
@@ -9,7 +7,7 @@ interface PushNotificationPayload {
   tokens: string[];
   title: string;
   body: string;
-  data?: Record<string, unknown>;
+  data?: Record<string, string>;
 }
 
 export async function sendPushNotification({
@@ -18,36 +16,42 @@ export async function sendPushNotification({
   body,
   data,
 }: PushNotificationPayload) {
-  const messages: ExpoPushMessage[] = [];
+  if (!tokens.length) return;
 
-  for (const token of tokens) {
-    if (!Expo.isExpoPushToken(token)) {
-      continue;
-    }
-
-    messages.push({
-      to: token,
-      sound: "default",
-      title,
-      body,
+  const response = await messaging.sendEach(
+    tokens.map(token => ({
+      token,
+      notification: {
+        title,
+        body,
+      },
       data,
-    });
-  }
+      android: {
+        priority: "high",
+      },
+    }))
+  );
 
-  const chunks = expo.chunkPushNotifications(messages);
+  const invalidTokens: string[] = [];
 
-  for (const chunk of chunks) {
-    const tickets = await expo.sendPushNotificationsAsync(chunk);
+  response.responses.forEach((result, index) => {
+    if (!result.success) {
+      const code = result.error?.code;
 
-    tickets.forEach(async (ticket, index) => {
       if (
-        ticket.status === "error" &&
-        ticket.details?.error === "DeviceNotRegistered"
+        code === "messaging/registration-token-not-registered" ||
+        code === "messaging/invalid-registration-token"
       ) {
-        await deactivateNotificationToken(chunk?.[index]?.to as string);
+        invalidTokens.push(tokens[index]!);
       }
-    });
-  }
+
+      console.error(`Push failed for token ${tokens[index]}:`, result.error);
+    }
+  });
+
+  await Promise.all(
+    invalidTokens.map(token => deactivateNotificationToken(token))
+  );
 }
 
 interface EmailTemplateParams {
