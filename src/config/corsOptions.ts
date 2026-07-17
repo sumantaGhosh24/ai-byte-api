@@ -3,6 +3,7 @@ const allowedOrigins = [
   "http://127.0.0.1:5173",
   "http://localhost:8288",
   "http://127.0.0.1:8288",
+  "https://ai-byte-web.vercel.app",
 ];
 
 const corsOptions = {
